@@ -21,7 +21,7 @@ target:  # 目标仓库信息配置,可以支持多个
 - registry: "http://10.45.46.109"
   user: 
   password: 
-  #repository: # 可选配置，是否修改镜像名称，假如填写值yyyy，则会将源仓库的10.45.80.1/xxxx/image:tag统一改成10.45.80.1/yyyy/image:tag
+  #repository: # 可选配置，是否修改镜像名称，假如填写值yyyy，则会将源仓库的10.45.80.1/xxxx/image:tag统一改成10.45.46.109/yyyy/image:tag
 #maxconn: 2 # 可选配置，最大并发数
 #retries: 1 # 可选配置，最大重试次数
 ```
