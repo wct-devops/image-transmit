@@ -26,12 +26,6 @@ target:  # 目标仓库信息配置,可以支持多个
 #retries: 1 # 可选配置，最大重试次数
 ```
 
-
-
-
-
-
-
-参考的开源库:  
+使用到的开源库:  
 https://github.com/AliyunContainerService/image-syncer  
 https://github.com/lxn/walk
