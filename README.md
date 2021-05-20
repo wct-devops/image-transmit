@@ -28,7 +28,7 @@ target:  # 目标仓库信息配置,可以支持多个
 ```
 
 ## 界面截图
-![image](https://user-images.githubusercontent.com/11539396/118992400-2f616d80-b9b7-11eb-947d-bd586abcb464.png)
+![image](https://user-images.githubusercontent.com/11539396/118996182-49507f80-b9ba-11eb-81c6-97d20facdf38.png)
 
 ## 使用说明
 1. 选择源仓库和目标仓库，按需调整并发度和异常重试次数
