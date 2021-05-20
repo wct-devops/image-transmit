@@ -43,3 +43,5 @@ target:  # 目标仓库信息配置,可以支持多个
 使用到的开源库:  
 https://github.com/AliyunContainerService/image-syncer  
 https://github.com/lxn/walk
+
+碰到问题欢迎大家提issue
