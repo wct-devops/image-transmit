@@ -33,7 +33,7 @@ target:  # 目标仓库信息配置,可以支持多个
 ```
 
 ## 界面截图
-![image](https://user-images.githubusercontent.com/11539396/121793817-45b8bd00-cc35-11eb-8d9f-395e8465d1a2.png)
+![image](https://user-images.githubusercontent.com/11539396/121794392-4bfd6800-cc3a-11eb-8f5f-b3f87eb49f57.png)
 
 ## 使用说明
 ### 直传场景
