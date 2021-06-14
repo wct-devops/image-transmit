@@ -1,5 +1,6 @@
-## WINDOWS下的容器镜像传输工具
+# 容器镜像传输工具
 
+## 支持WINDOWS下使用
 各团队在给项目发布版本的时候，都会涉及到将容器镜像从公司的官方仓库复制到项目的仓库上，一般我们需要让客户找一台Linux作为跳板机，安装好Docker工具，然后docker pull/docker tag/docker push的方式来进行，这台Linux主机需要有单独申请访问外网的权限。这个申请流程比较麻烦，而更常见的是客户会提供一个Windows跳板机。在Windows上安装Docker比较麻烦，而且由于Docker镜像占用空间较多，还需要定时的清理或者维护跳板机，否则容易出现各种异常。
 
 目前我们版本升级都通过界面实现了一键操作的傻瓜方式，而传输镜像因为涉及网络权限和跳板机，很多还是手工操作。因此开发了这个Windows的镜像传输工具方便大家使用。
@@ -11,32 +12,36 @@
 - 并发数和重试数支持可配置，可以根据网络条件调整
 - 同时支持离线模式和直传模式
 
-## 配置文件
-在工具的相同目录下,放置一个配置文件cfg.yaml,其内容参考如下：
+### 配置文件
+在工具的目录下,放置一个配置文件cfg.yaml,其内容参考如下：
 ```yaml
 source: # 源仓库信息配置,可以支持多个
-- registry: "http://10.45.80.1"
+  registry: "http://10.45.80.1"
   user: #用户名和密码，如果匿名访问，用户名和密码都留空即可
   password:
+  #name: #可选配置,指定名称
 target:  # 目标仓库信息配置,可以支持多个
-- registry: "http://10.45.46.109"
+  registry: "http://10.45.46.109"
   user: 
   password: 
   #repository: # 可选配置，是否修改镜像名称，假如填写值yyyy，则会将源仓库的10.45.80.1/xxxx/image:tag统一改成10.45.46.109/yyyy/image:tag
+  #name: #可选配置,指定名称
 #maxconn: 5 # 可选配置，最大并发数，默认5
 #retries: 2 # 可选配置，最大重试次数，默认2
 #singlefile: false #可选配置，是否生成单一文件，默认关
+#compressor: # 可选配置，windows下默认为tar模式, linux下默认为squashfs模式, 可以修改
+#lang: en_US # 可选配置，指定语言版本,支持中英文两种语言，默认取操作系统语言
 #cache:   # 可选配置，是否开启本地缓存，默认关
 #  pathname: cache # 缓存目录
 #  keepdays: 7  # 缓存最长保留时间，默认7
 #  keepsize: 10  # 缓存目录最大使用量，单位G，默认10
 ```
 
-## 界面截图
-![image](https://user-images.githubusercontent.com/11539396/121794392-4bfd6800-cc3a-11eb-8f5f-b3f87eb49f57.png)
+### 界面截图
+![image](https://user-images.githubusercontent.com/11539396/121972464-c3073d80-cdad-11eb-8067-ac1d26cba791.png)
 
-## 使用说明
-### 直传场景
+### 使用说明
+#### 直传场景
 假设客户提供的跳板机可以连接公网上的仓库，也可以同时连接内网的仓库，则优先推荐使用这个模式。直传模式逐个从源仓库拉取镜像，然后直接推动到目标仓库，文件不落地，网络带宽有保障即可，同时只会传输目标仓库上不存在的分层，因此效率是最高的，如果直通网络有保障，这个是最简单的模式。
 1. 选择源仓库和目标仓库，按需调整并发度和异常重试次数
 2. 在左侧输入框输入需要传输的镜像列表，会自动替换镜像列表URL地址信息，统一使用选择的源仓库的URL地址，无需手工去替换
@@ -49,7 +54,7 @@ target:  # 目标仓库信息配置,可以支持多个
 > 1. 每次需要向多个目标仓库同步相同的镜像，使用本地缓存，一些包只需要从源仓库下载一次
 > 2. 跳板机网络不稳定，使用缓存可以尽量减少一次重复的包传输
 
-### 离线场景
+#### 离线场景
 一些客户不允许提供可以开放公网访问的跳板机，因此不能使用直传模式，需要使用离线模式，即先在研发中心将镜像打包成文件，然后转移到跳板机，然后从跳板机上将文件上传到目标仓库。整个过程需要使用到【下载】和【上传】两个按钮。
 1. 选择源仓库，按需调整并发度和异常重试次数，以及增量或者全量模式，是否使用单一文件模式等
 2. 在左侧输入框输入需要传输的镜像列表，会自动替换镜像列表URL地址信息，统一使用选择的源仓库的URL地址，无需手工去替换
@@ -79,8 +84,103 @@ target:  # 目标仓库信息配置,可以支持多个
 > 通常下载时选择使用几个并发，就会产生几个独立数据文件，但是某些场景下，用户希望只需要一个数据文件，方便传输，则可以打开【单一文件】的开关。打开这个开关后，文件都会先被下载到临时目录中，最后被合并成一个文件，因此占用空间和IO，时间也会更长。
 > 如果下载时是在同一个局域网内，不存在网络瓶颈，可以在界面上设置并发度为1或者在cfg.yaml中增加一个maxconn=1的配置，只使用一个网络线程，也可以实现只生成一个文件，并且避免了本地操作，可以验证一下两种方式哪种更快。
 
+## 命令行模式
+支持windows和linux下命令行方式进行传输(windows下命令行程序为image-transmit-cmd.exe)
+```
+zoms@172.16.85.48[/home/zoms]$ image-transmit 
+Invalid args, please refer the help
+Image Transmit-DragonBoat-WhaleCloud DevOps Team
+./image-transmit [OPTIONS]
+Examples: 
+            Save mode:           ./image-transmit -src=nj -lst=img.lst
+            Increment save mode: ./image-transmit -src=nj -lst=img.lst -inc=img_full_202106122344_meta.yaml
+            Transmit mode:       ./image-transmit -src=nj -lst=img.lst -dst=gz
+            Upload mode:           ./image-transmit -dst=gz -img=img_full_202106122344_meta.yaml
+More description please refer to github.com/wct-devops/image-transmit
+  -dst string
+        Destination repository name, default: the first repo in cfg.yaml
+  -img string
+        Image meta file to upload(*meta.yaml)
+  -inc string
+        The referred image meta file(*meta.yaml) in increment mode
+  -lst string
+        Image list file, one image each line
+  -src string
+        Source repository name, default: the first repo in cfg.yaml
+zoms@172.16.85.48[/home/zoms]$ image-transmit -src=nj <<EOF
+10.45.80.21/public/alpine:3.11
+10.45.80.21/public/alpine:3.12.1
+10.45.80.21/public/alpine:3.12.2
+EOF
+[2021-06-14 21:42:12] Get 3 images
+[2021-06-14 21:42:12] Create data file: img_full_202106142142_0.tar
+[2021-06-14 21:42:12] Create data file: img_full_202106142142_1.tar
+[2021-06-14 21:42:14] Generated a download task for 10.45.80.1/public/alpine:3.11
+[2021-06-14 21:42:16] Generated a download task for 10.45.80.1/public/alpine:3.12.1
+[2021-06-14 21:42:17] Url http://10.45.80.1/public/alpine:3.12.2 format error: Error reading manifest 3.12.2 in 10.45.80.1/public/alpine: manifest unknown: manifest unknown, skipped
+[2021-06-14 21:42:17] Start processing taks, total 2 ...
+[2021-06-14 21:42:17] Get manifest from 10.45.80.1/public/alpine:3.11
+Invalid:1 Total:2 Success:0 Failed:0 Doing:1 Down:0.0B/s Up:0.0B/s, Total Down:0.0B Up:0.0B Time:
+[2021-06-14 21:42:17] Get manifest from 10.45.80.1/public/alpine:3.12.1
+[2021-06-14 21:42:17] Get a blob sha256:cbdbe7a5bc2a(2.7MB) from 10.45.80.1/public/alpine:3.11 success
+[2021-06-14 21:42:17] Get a blob sha256:188c0c94c7c5(2.7MB) from 10.45.80.1/public/alpine:3.12.1 success
+[2021-06-14 21:42:17] Get a blob sha256:f70734b6a266(1.5KB) from 10.45.80.1/public/alpine:3.11 success
+[2021-06-14 21:42:17] Get a blob sha256:d6e46aa2470d(1.5KB) from 10.45.80.1/public/alpine:3.12.1 success
+[2021-06-14 21:42:17] Task completed, total 2 tasks with 0 failed
+[2021-06-14 21:42:17] WARNING: there are 1 images failed with invalid url(ex:image not exists)
+[2021-06-14 21:42:17] Invalid url list:
+http://10.45.80.1/public/alpine:3.12.2
+[2021-06-14 21:42:17] Create meta file: data/20210614/img_full_202106142142_meta.yaml
+```
 
-## 致谢
+```
+C:\Users\WangYuMu\go\src\github.com\wct-devops\image-transmit\cmd>image-transmit-cmd.exe
+命令行参数不正确，请查看帮助
+云雀-镜像传输工具-龙舟版-浩鲸DevOps团队
+image-transmit-cmd.exe [选项]
+例子:
+            下载模式:           image-transmit-cmd.exe -src=nj -lst=img.lst
+            增量下载模式:       image-transmit-cmd.exe -src=nj -lst=img.lst -inc=img_full_202106122344_meta.yaml
+            直传模式:           image-transmit-cmd.exe -src=nj -lst=img.lst -dst=gz
+            上传模式:           image-transmit-cmd.exe -dst=gz -img=img_full_202106122344_meta.yaml
+更多帮助可以访问github.com/wct-devops/image-transmit
+  -dst string
+        目标仓库名称, 默认为第一个
+  -img string
+        需要上传的镜像规格文件(*meta.yaml)
+  -inc string
+        指定增量模式下参考的镜像规格文件(*meta.yaml)
+  -lst string
+        镜像列表文件,一行一个
+  -src string
+        源仓库名称, 默认为配置文件中的第一个仓库
+C:\Users\WangYuMu\go\src\github.com\wct-devops\image-transmit\cmd>(echo 10.45.80.21/public/alpine:3.11 && echo 10.45.80.21/public/alpine:3.12.1 ) | image-transmit-cmd.exe
+-src=nj
+[2021-06-14 21:52:28] 读取2个镜像
+[2021-06-14 21:52:28] 生成数据文件: img_full_202106142152_0.tar
+[2021-06-14 21:52:28] 生成数据文件: img_full_202106142152_1.tar
+[2021-06-14 21:52:31] 完成10.45.80.1/public/alpine:3.11下载任务创建
+[2021-06-14 21:52:35] 完成10.45.80.1/public/alpine:3.12.1下载任务创建
+[2021-06-14 21:52:35] 开始处理任务，总计2个，请稍后...
+无效:0 总计:2 成功:2 失败:0 正在处理:0 下载速度:0.0B/s 上传速度:0.0B/s 总下载:0.0B 总上传:0.0B 耗时:
+[2021-06-14 21:52:35] 从 10.45.80.1/public/alpine:3.11 下载manifest完成
+[2021-06-14 21:52:35] 从 10.45.80.1/public/alpine:3.12.1 下载manifest完成
+[2021-06-14 21:52:35] 下载blob sha256:188c0c94c7c5(2.7MB) 自 10.45.80.1/public/alpine:3.12.1 完成
+[2021-06-14 21:52:35] 下载blob sha256:cbdbe7a5bc2a(2.7MB) 自 10.45.80.1/public/alpine:3.11 完成
+无效:0 总计:2 成功:0 失败:0 正在处理:2 下载速度:0.0B/s 上传速度:0.0B/s 总下载:0.0B 总上传:0.0B 耗时:
+无效:0 总计:2 成功:0 失败:0 正在处理:2 下载速度:0.0B/s 上传速度:0.0B/s 总下载:0.0B 总上传:0.0B 耗时:
+无效:0 总计:2 成功:0 失败:0 正在处理:2 下载速度:0.0B/s 上传速度:0.0B/s 总下载:0.0B 总上传:0.0B 耗时:
+[2021-06-14 21:52:39] 下载blob sha256:f70734b6a266(1.5KB) 自 10.45.80.1/public/alpine:3.11 完成
+无效:0 总计:2 成功:1 失败:0 正在处理:1 下载速度:549.8KB/s 上传速度:0.0B/s 总下载:2.7MB 总上传:0.0B 耗时:
+[2021-06-14 21:52:39] 下载blob sha256:d6e46aa2470d(1.5KB) 自 10.45.80.1/public/alpine:3.12.1 完成
+[2021-06-14 21:52:39] 任务处理结束，总计2任务，0任务失败
+[2021-06-14 21:52:39] 生成压缩规格文件: data\20210614\img_full_202106142152_meta.yaml
+```
+
+
+
+
+### 致谢
 使用到的开源库:  
 https://github.com/AliyunContainerService/image-syncer  
 https://github.com/lxn/walk  
