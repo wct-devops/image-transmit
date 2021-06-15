@@ -182,7 +182,7 @@ C:\Users\WangYuMu\go\src\github.com\wct-devops\image-transmit\cmd>(echo 10.45.80
 ```
 
 ### 版本下载说明
-请到[release](https://github.com/wct-devops/image-transmit/release)页面下载
+请到[release](https://github.com/wct-devops/image-transmit/releases)页面下载
 - image-transmit : Linux命令行版
 - image-transmit-cmd.zip : Windows命令行版
 - image-transmit-gui.zip : Windows桌面版
