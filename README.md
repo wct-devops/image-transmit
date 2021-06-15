@@ -13,7 +13,7 @@
 - 同时支持离线模式和直传模式
 
 ### 配置文件
-在工具的目录下,放置一个配置文件cfg.yaml,其内容参考如下：
+在工具的目录下,放置一个配置文件cfg.yaml(或者data目录下),其内容参考如下：
 ```yaml
 source: # 源仓库信息配置,可以支持多个
   registry: "http://10.45.80.1"
@@ -85,7 +85,11 @@ target:  # 目标仓库信息配置,可以支持多个
 > 如果下载时是在同一个局域网内，不存在网络瓶颈，可以在界面上设置并发度为1或者在cfg.yaml中增加一个maxconn=1的配置，只使用一个网络线程，也可以实现只生成一个文件，并且避免了本地操作，可以验证一下两种方式哪种更快。
 
 ## 命令行模式
-支持windows和linux下命令行方式进行传输(windows下命令行程序为image-transmit-cmd.exe)
+龙舟版开始同时支持windows和linux下命令行方式进行传输：
+
+1. 由于需要通过命令行来指定源/目标仓库信息，因此建议在配置文件中为每个仓库配置一个name，以方便使用。如果不指定，则默认的name为"registry-repository"
+2. 使用命令行时, 可以将镜像列表放到一个文本文件，然后通过-lst参数传递给程序，也可以直接使用输入流的方式来指定，简化日常操作，可以参见下文中的使用示意。
+
 ```
 zoms@172.16.85.48[/home/zoms]$ image-transmit 
 Invalid args, please refer the help
@@ -177,8 +181,17 @@ C:\Users\WangYuMu\go\src\github.com\wct-devops\image-transmit\cmd>(echo 10.45.80
 [2021-06-14 21:52:39] 生成压缩规格文件: data\20210614\img_full_202106142152_meta.yaml
 ```
 
+### 版本下载说明
+请到[release](https://github.com/wct-devops/image-transmit/release)页面下载
+- image-transmit : Linux命令行版
+- image-transmit-cmd.zip : Windows命令行版
+- image-transmit-gui.zip : Windows桌面版
 
 
+### 多语言支持
+目前支持中英两种语言，会自动根据操作系统的设置自动切换。如果想强制切换，有两种方式：
+1. 在cfg.yaml中通过lang参数来指定en_US/zh_CN
+2. 在环境变量中指定lang参数
 
 ### 致谢
 使用到的开源库:  
