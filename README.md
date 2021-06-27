@@ -190,7 +190,7 @@ C:\Users\WangYuMu\go\src\github.com\wct-devops\image-transmit\cmd>(echo 10.45.80
 > 2. squashfs需要将容器镜像每一层的包都解开到本地，需要占用大量本地文件系统空间，但是由于squashfs文件系统支持重复文件识别等固实压缩优化，比tar模式节省30%左右大小
 > 3. 由于squashfs需要将每一层压缩包都解开到临时目录，并逐个扫描压缩，容器镜像中存在很多系统文件，因此对权限要求比较高，需要使用root账号或者sudo命令来执行，否则会报错
 > 4. 目前Golang并没有非常完善的squashfs解压缩和tar解压到文件系统的包，目前测试比较稳定的是在Linux下，使用Linux自带的mksquashfs、tar工具来进行解包和打包，因此windows下不建议使用squashfs，除非你能确认镜像包中只包含普通权限的文件，可以尝试。在windows下压缩需要下载squashfs.zip包并解压到同一目录下
-> 5. squashfs的temp目录大小需要足够存放整个镜像未压缩的大小
+> 5. squashfs的temp目录大小需要足够存放整个镜像未压缩的文件
 
 > 建议使用缓存目录  
 > 如果使用一些固定的机器来给项目发布镜像，可以打开缓存，这样可以避免每次重复下载已有的镜像层，大大提高打包的效率
