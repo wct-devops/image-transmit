@@ -1,0 +1,31 @@
+source:
+- registry: "http://10.45.80.1"
+  user: reader
+  password: "read@iWhalecloud2018"
+  #name: nj
+- registry: "http://10.45.46.109"
+  user: admin
+  password: "abc@123A2019"
+target:
+- registry: "http://10.45.46.109"
+  user: admin
+  password: "abc@123A2019"
+  repository: test
+  #name: gz
+- registry: "http://10.45.46.109"
+  user: admin
+  password: "abc@123A2019"
+  repository: test2
+  name: gz2
+maxconn: 2
+retries: 1
+#compressor: squashfs
+#squashfs: nocmd
+# squashfs: nocmd, stream
+keeptemp: true
+#lang: en_US
+#singlefile: false
+cache:
+  pathname: cache
+  keepdays: 1
+  keepsize: 1

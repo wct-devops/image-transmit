@@ -1,0 +1,6 @@
+
+zoms@172.16.85.48[/home/zoms/test]$ mkdir test
+zoms@172.16.85.48[/home/zoms/test]$ tar -C test -x < 1.6.tar
+tar: manifest.json: implausibly old time stamp 1970-01-01 08:00:00
+tar: repositories: implausibly old time stamp 1970-01-01 08:00:00
+zoms@172.16.85.48[/home/zoms/test]$

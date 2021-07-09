@@ -1,0 +1,7 @@
+/win/data/
+/win/squashfs/
+/cmd/data/
+/cmd/squashfs/
+/cmd/image-transmit
+/cmd/image-transmit-cmd.exe
+/cmd/image-transmit-cmd.zip
