@@ -46,6 +46,7 @@ type YamlCfg struct {
 	Cache LocalCache `yaml:"cache,omitempty"`
 	Lang string  `yaml:"lang,omitempty"`
 	KeepTemp bool `yaml:"keeptemp,omitempty"`
+	OutPrefix string  `yaml:"outprefix,omitempty"`
 }
 
 func main() {
@@ -270,6 +271,10 @@ func main() {
 								workName = time.Now().Format("img_incr_200601021504")
 							} else {
 								workName = time.Now().Format("img_full_200601021504")
+							}
+
+							if len(conf.OutPrefix) > 0 {
+								workName = conf.OutPrefix + "_" + workName
 							}
 
 							mw.ctx.CreateCompressionMetadata(mw.compressor)

@@ -6,6 +6,9 @@ source:
 - registry: "http://10.45.46.109"
   user: admin
   password: "abc@123A2019"
+- registry: "http://docker.iwhalecloud.com:52800"
+  user: 
+  password:
 target:
 - registry: "http://10.45.46.109"
   user: admin
@@ -25,6 +28,7 @@ retries: 1
 keeptemp: true
 #lang: en_US
 #singlefile: false
+#outprefix: myproduct
 cache:
   pathname: cache
   keepdays: 1

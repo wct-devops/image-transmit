@@ -29,6 +29,7 @@ var (
 	flConfLst  *string
 	flConfInc  *string
 	flConfImg  *string
+	flConfOut  *string
 )
 
 type Repo struct {
@@ -50,6 +51,7 @@ type YamlCfg struct {
 	Cache LocalCache `yaml:"cache,omitempty"`
 	Lang string  `yaml:"lang,omitempty"`
 	KeepTemp bool `yaml:"keeptemp,omitempty"`
+	OutPrefix string  `yaml:"outprefix,omitempty"`
 }
 
 func main(){
@@ -130,6 +132,7 @@ func main(){
 	flConfLst  = flag.String("lst", "", I18n.Sprintf("Image list file, one image each line"))
 	flConfInc  = flag.String("inc", "", I18n.Sprintf("The referred image meta file(*meta.yaml) in increment mode"))
 	flConfImg  = flag.String("img", "", I18n.Sprintf("Image meta file to upload(*meta.yaml)"))
+	flConfOut  = flag.String("out", "", I18n.Sprintf("Output filename prefix"))
 
 	flag.Usage = func() {
 		fmt.Println(I18n.Sprintf("Image Transmit-DragonBoat-WhaleCloud DevOps Team"))
@@ -172,6 +175,10 @@ func main(){
 			fmt.Printf(I18n.Sprintf("Could not find repo: %s", *flConfDst))
 			return
 		}
+	}
+
+	if len(*flConfOut) > 0 {
+		conf.OutPrefix = *flConfOut
 	}
 
 	var lc *LocalCache
@@ -331,6 +338,10 @@ func download(ctx *TaskContext) error {
 		workName = time.Now().Format("img_incr_200601021504")
 	} else {
 		workName = time.Now().Format("img_full_200601021504")
+	}
+
+	if len(conf.OutPrefix) > 0 {
+		workName = conf.OutPrefix + "_" + workName
 	}
 
 	ctx.CreateCompressionMetadata(conf.Compressor)

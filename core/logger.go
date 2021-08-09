@@ -314,4 +314,5 @@ func init() {
 	message.SetString(language.Chinese, "Unsquashfs uncompress Start",   "Squashfs解压开始")
 	message.SetString(language.Chinese, "Unsquashfs uncompress End",   "Squashfs解压结束")
 	message.SetString(language.Chinese, "Squashfs condition check failed， we need root privilege(run as root or sudo) and squashfs-tools/tar installed\n",   "Squashfs条件检查失败，当使用squashfs压缩时需要使用sudo或者root账号运行，并且安装好squashfs-tools和tar工具\n")
+	message.SetString(language.Chinese, "Output filename prefix", "输出压缩文件的前缀")
 }
