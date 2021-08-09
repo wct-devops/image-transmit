@@ -32,6 +32,7 @@ target:  # 目标仓库信息配置,可以支持多个
 #compressor: # 可选配置。如果不配置，windows下默认为tar模式, linux下如果系统存在mksquashfs/tar,且运行时为特权账号(root或者sudo)，则采用squashfs模式，否则为tar模式，详细解释参考说明
 #lang: en_US # 可选配置，指定语言版本,支持中英文两种语言，默认取操作系统语言
 #cache:   # 可选配置，是否开启本地缓存，默认关，详细参考说明
+#outprefix: # 可选配置，用于指定生成的压缩文件的前缀，也可以在执行命令时使用-out参数来指定
 #  pathname: cache # 缓存目录
 #  keepdays: 7  # 缓存最长保留时间，默认7
 #  keepsize: 10  # 缓存目录最大使用量，单位G，默认10
@@ -111,6 +112,8 @@ More description please refer to github.com/wct-devops/image-transmit
         Image list file, one image each line
   -src string
         Source repository name, default: the first repo in cfg.yaml
+  -out string
+        Output filename prefix
 zoms@172.16.85.48[/home/zoms]$ image-transmit -src=nj <<EOF
 10.45.80.21/public/alpine:3.11
 10.45.80.21/public/alpine:3.12.1
@@ -158,6 +161,8 @@ image-transmit-cmd.exe [选项]
         镜像列表文件,一行一个
   -src string
         源仓库名称, 默认为配置文件中的第一个仓库
+  -out string
+        输出压缩文件的前缀
 C:\Users\WangYuMu\go\src\github.com\wct-devops\image-transmit\cmd>(echo 10.45.80.21/public/alpine:3.11 && echo 10.45.80.21/public/alpine:3.12.1 ) | image-transmit-cmd.exe
 -src=nj
 [2021-06-14 21:52:28] 读取2个镜像
