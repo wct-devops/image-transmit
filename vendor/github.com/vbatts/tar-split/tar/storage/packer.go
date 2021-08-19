@@ -94,9 +94,6 @@ func (jp *jsonPacker) AddEntry(e Entry) (int, error) {
 	}
 
 	e.Position = jp.pos
-
-	//fmt.Println(e)
-
 	err := jp.e.Encode(e)
 	if err != nil {
 		return -1, err

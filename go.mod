@@ -3,6 +3,7 @@ module github.com/wct-devops/image-transmit
 go 1.14
 
 require (
+	github.com/blinkbean/dingtalk v0.0.0-20201231030509-45a553a84503
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/codeclysm/extract/v3 v3.0.2 // indirect
 	github.com/containers/image/v5 v5.12.0
@@ -10,6 +11,7 @@ require (
 	github.com/klauspost/compress v1.12.2
 	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
+	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/pierrec/lz4 v2.6.1+incompatible
 	github.com/pkg/errors v0.9.1

@@ -23,7 +23,7 @@ type ImageDestination struct {
 
 // NewImageDestination generates a ImageDestination by repository, the repository string must include "tag".
 // If username or password ids empty, access to repository will be anonymous.
-func NewImageDestination(registry, repository, tag, username, password string, insecure bool) (*ImageDestination, error) {
+func NewImageDestination(pCtx context.Context, registry, repository, tag, username, password string, insecure bool) (*ImageDestination, error) {
 	if CheckIfIncludeTag(repository) {
 		return nil, fmt.Errorf("repository string should not include tag")
 	}
@@ -50,7 +50,7 @@ func NewImageDestination(registry, repository, tag, username, password string, i
 		sysctx = &types.SystemContext{}
 	}
 
-	ctx := context.WithValue(context.Background(), interface{}("ImageDestination"), repository)
+	ctx := context.WithValue(pCtx, interface{}("ImageDestination"), repository)
 	if username != "" && password != "" {
 		sysctx.DockerAuthConfig = &types.DockerAuthConfig{
 			Username: username,

@@ -39,22 +39,37 @@ func (t *OfflineDownTask) Name() string {
 	return t.url
 }
 
+
+func (t *OfflineDownTask) Callback(success bool, content string) {
+}
+
+func (t *OfflineDownTask)StatDown(size int64, duration time.Duration){
+
+}
+func (t *OfflineDownTask)StatUp(size int64, duration time.Duration) {
+
+}
+func (t *OfflineDownTask)Status() string {
+	return ""
+}
+
 func (t *OfflineDownTask) Run(tid int) error {
+	srcUrl := fmt.Sprintf(	"%s/%s:%s", t.is.GetRegistry(), t.is.GetRepository(), t.is.GetTag())
 	defer t.ctx.CompMeta.ClearDoing(tid)
 	manifestByte, manifestType, err := t.is.GetManifest()
 	if err != nil {
-		return errors.New(I18n.Sprintf("Failed to get manifest from %s/%s:%s error: %v", t.is.GetRegistry(), t.is.GetRepository(), t.is.GetTag(), err))
+		return errors.New(I18n.Sprintf("Failed to get manifest from %s error: %v", srcUrl, err))
 	}
-	t.ctx.Info(I18n.Sprintf("Get manifest from %s/%s:%s", t.is.GetRegistry(), t.is.GetRepository(), t.is.GetTag()))
+	t.ctx.Info(I18n.Sprintf("Get manifest from %s", srcUrl))
 
 	blobInfos, err := t.is.GetBlobInfos(manifestByte, manifestType)
 	if err != nil {
-		return errors.New(I18n.Sprintf("Get blob info from %s/%s:%s error: %v", t.is.GetRegistry(), t.is.GetRepository(), t.is.GetTag(), err))
+		return errors.New(I18n.Sprintf("Get blob info from %s error: %v", srcUrl, err))
 	}
 	t.ctx.CompMeta.AddImage(t.url, string(manifestByte))
 
 	for _, b := range blobInfos {
-		begin := time.Now().Unix()
+		begin := time.Now()
 		var netBytes = b.Size
 		if t.ctx.Cancel() {
 			return errors.New(I18n.Sprintf("User cancelled..."))
@@ -67,9 +82,9 @@ func (t *OfflineDownTask) Run(tid int) error {
 
 		blob, size, err := t.is.GetABlob(b)
 		if err != nil {
-			return errors.New(I18n.Sprintf("Get blob %s(%v) from %s/%s:%s failed: %v", b.Digest.String(), FormatByteSize(size), t.is.GetRegistry(), t.is.GetRepository(), t.is.GetTag(), err))
+			return errors.New(I18n.Sprintf("Get blob %s(%v) from %s failed: %v", b.Digest.String(), FormatByteSize(size), srcUrl, err))
 		}
-		t.ctx.Debug(I18n.Sprintf("Get a blob %s(%v) from %s/%s:%s success", ShortenString(b.Digest.String(),19), FormatByteSize(size), t.is.GetRegistry(), t.is.GetRepository(), t.is.GetTag()))
+		t.ctx.Debug(I18n.Sprintf("Get a blob %s(%v) from %s success", ShortenString(b.Digest.String(),19), FormatByteSize(size), srcUrl))
 
 		var blobName string
 		// skip the empty gzip layer or tar-split will failed, and many empty HEXs here, using size more safe
@@ -161,9 +176,8 @@ func (t *OfflineDownTask) Run(tid int) error {
 				}
 			}
 		}
-		end := time.Now().Unix()
 		if netBytes > 0 {
-			t.ctx.StatDown(netBytes, end - begin)
+			t.ctx.StatDown(netBytes, time.Now().Sub(begin))
 		}
 		t.ctx.CompMeta.BlobDone(b.Digest.Hex(), t.url)
 	}
@@ -192,6 +206,19 @@ func (t *OfflineUploadTask) Name() string {
 	return t.url
 }
 
+func (t *OfflineUploadTask) Callback(bool, string) {
+}
+
+func (t *OfflineUploadTask)StatDown(size int64, duration time.Duration){
+
+}
+func (t *OfflineUploadTask)StatUp(size int64, duration time.Duration) {
+
+}
+func (t *OfflineUploadTask)Status() string {
+	return ""
+}
+
 func (t *OfflineUploadTask) Run(tid int) error {
 	manifestJson, _ := t.ctx.CompMeta.Manifests[t.url]
 	m := Manifest{}
@@ -212,17 +239,19 @@ func (t *OfflineUploadTask) Run(tid int) error {
 		dockerSave = NewDockerSave(t.ctx)
 	}
 
+	var dstUrl string
 	for i, b := range blobs {
 		blobExist := false
 		var err error
 		if t.ids != nil {
+			dstUrl = fmt.Sprintf("%s/%s:%s", t.ids.GetRegistry(), t.ids.GetRepository(), t.ids.GetTag())
 			blobExist, err = t.ids.CheckBlobExist(b)
 			if err != nil {
-				return fmt.Errorf(I18n.Sprintf("Check blob %s(%v) to %s/%s:%s exist error: %v", b.Digest.String(), FormatByteSize(b.Size), t.ids.GetRegistry(), t.ids.GetRepository(), t.ids.GetTag(), err))
+				return fmt.Errorf(I18n.Sprintf("Check blob %s(%v) to %s exist error: %v", b.Digest.String(), FormatByteSize(b.Size), dstUrl, err))
 			}
 		}
 		if blobExist {
-			t.ctx.Debug(I18n.Sprintf("Blob %s(%v) has been pushed to %s/%s:%s, will not be pulled", ShortenString(b.Digest.String(), 19), FormatByteSize(b.Size), t.ids.GetRegistry(), t.ids.GetRepository(), t.ids.GetTag()))
+			t.ctx.Debug(I18n.Sprintf("Blob %s(%v) has been pushed to %s, will not be pulled", ShortenString(b.Digest.String(), 19), FormatByteSize(b.Size), dstUrl))
 		} else {
 			var found bool = false
 			for k := range t.ctx.CompMeta.Datafiles {
@@ -300,21 +329,18 @@ func (t *OfflineUploadTask) Run(tid int) error {
 					found = true
 					break
 				} else {
-					begin := time.Now().Unix()
+					begin := time.Now()
 					err = t.ids.PutABlob(ioutil.NopCloser(reader), b)
-					end := time.Now().Unix()
-
 					if err != nil {
-						return fmt.Errorf(I18n.Sprintf("Put blob %s(%v) to %s/%s:%s failed: %v", b.Digest, b.Size, t.ids.GetRegistry(),t.ids.GetRepository(), t.ids.GetTag(), err))
+						return fmt.Errorf(I18n.Sprintf("Put blob %s(%v) to %s failed: %v", b.Digest, b.Size, t.ids.GetRegistry(),t.ids.GetRepository(), t.ids.GetTag(), err))
 					} else {
-						t.ctx.Debug(I18n.Sprintf("Put blob %s(%v) to %s/%s:%s success", ShortenString(b.Digest.String(),19), FormatByteSize(b.Size), t.ids.GetRegistry(), t.ids.GetRepository(), t.ids.GetTag()))
-						t.ctx.StatUp(netBytes, end - begin)
+						t.ctx.Debug(I18n.Sprintf("Put blob %s(%v) to %s success", ShortenString(b.Digest.String(),19), FormatByteSize(b.Size), dstUrl))
+						t.ctx.StatUp(netBytes, time.Now().Sub(begin))
 						found = true
 						break
 					}
 				}
 			}
-
 			if !found {
 				return fmt.Errorf(I18n.Sprintf("Blob not found in datafiles: %s", b.Digest.Hex()))
 			}
@@ -326,9 +352,9 @@ func (t *OfflineUploadTask) Run(tid int) error {
 
 	if t.ids != nil {
 		if err := t.ids.PushManifest(manifestByte); err != nil {
-			return fmt.Errorf(I18n.Sprintf("Put manifest to %s/%s:%s error: %v", t.ids.GetRegistry(), t.ids.GetRepository(), t.ids.GetTag(), err))
+			return fmt.Errorf(I18n.Sprintf("Put manifest to %s error: %v", dstUrl, err))
 		}
-		t.ctx.Info(I18n.Sprintf("Put manifest to %s/%s:%s", t.ids.GetRegistry(), t.ids.GetRepository(), t.ids.GetTag()))
+		t.ctx.Info(I18n.Sprintf("Put manifest to %s", dstUrl))
 	} else {
 		dockerSave.AppendMeta(&m, t.url)
 		dockerSave.Close()

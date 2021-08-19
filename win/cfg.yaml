@@ -1,35 +1,25 @@
-source:
-- registry: "http://10.45.80.1"
-  user: reader
-  password: "read@iWhalecloud2018"
-  #name: nj
-- registry: "http://10.45.46.109"
-  user: admin
-  password: "abc@123A2019"
-- registry: "http://docker.iwhalecloud.com:52800"
-  user: 
+source: # 源仓库信息配置,可以支持多个
+  registry: "http://10.45.80.1"
+  user: #用户名和密码，如果匿名访问，用户名和密码都留空即可
   password:
-target:
-- registry: "http://10.45.46.109"
-  user: admin
-  password: "abc@123A2019"
-  repository: test
-  #name: gz
-- registry: "http://10.45.46.109"
-  user: admin
-  password: "abc@123A2019"
-  repository: test2
-  name: gz2
-maxconn: 2
-retries: 1
-#compressor: squashfs
-#squashfs: nocmd
-# squashfs: nocmd, stream
-keeptemp: true
-#lang: en_US
-#singlefile: false
-#outprefix: myproduct
-cache:
-  pathname: cache
-  keepdays: 1
-  keepsize: 1
+  #name: #可选配置,指定名称
+target:  # 目标仓库信息配置,可以支持多个
+  registry: "http://10.45.46.109"
+  user:
+  password:
+  #repository: # 可选配置，是否修改镜像名称，假如填写值yyyy，则会将源仓库的10.45.80.1/xxxx/image:tag统一改成10.45.46.109/yyyy/image:tag
+  #name: #可选配置,指定名称
+#maxconn: 5 # 可选配置，最大并发数，默认5
+#retries: 2 # 可选配置，最大重试次数，默认2
+#singlefile: false #可选配置，是否生成单一文件，默认关
+#compressor: # 可选配置。如果不配置，windows下默认为tar模式, linux下如果系统存在mksquashfs/tar,且运行时为特权账号(root或者sudo)，则采用squashfs模式，否则为tar模式，详细解释参考说明
+#lang: en_US # 可选配置，指定语言版本,支持中英文两种语言，默认取操作系统语言
+#cache:   # 可选配置，是否开启本地缓存，默认关，详细参考说明
+#  pathname: cache # 缓存目录
+#  keepdays: 7  # 缓存最长保留时间，默认7
+#  keepsize: 10  # 缓存目录最大使用量，单位G，默认10
+#outprefix: # 可选配置，用于指定生成的压缩文件的前缀，也可以在执行命令时使用-out参数来指定
+#interval: 60 # 可选配置，守护模式下定时扫描的时间间隔，默认60
+#dingtalk: # 可选配置,用于发送钉钉通知，支持多个
+#- token :  # 用于配置钉钉令牌
+#  secret:  # 用于配置钉钉密钥

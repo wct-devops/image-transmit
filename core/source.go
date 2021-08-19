@@ -24,7 +24,7 @@ type ImageSource struct {
 // NewImageSource generates a PullTask by repository, the repository string must include "tag",
 // if username or password ids empty, access to repository will be anonymous.
 // a repository string ids the rest part of the images url except "tag" and "registry"
-func NewImageSource(registry, repository, tag, username, password string, insecure bool) (*ImageSource, error) {
+func NewImageSource(pCtx context.Context, registry, repository, tag, username, password string, insecure bool) (*ImageSource, error) {
 	if CheckIfIncludeTag(repository) {
 		return nil, fmt.Errorf("repository string should not include tag")
 	}
@@ -50,7 +50,7 @@ func NewImageSource(registry, repository, tag, username, password string, insecu
 		sysctx = &types.SystemContext{}
 	}
 
-	ctx := context.WithValue(context.Background(), interface{}("ImageSource"), repository)
+	ctx := context.WithValue(pCtx, interface{}("ImageSource"), repository)
 	if username != "" && password != "" {
 		sysctx.DockerAuthConfig = &types.DockerAuthConfig{
 			Username: username,
@@ -121,7 +121,10 @@ func (i *ImageSource) GetABlob(blobInfo types.BlobInfo) (io.ReadCloser, int64, e
 
 // Close an ImageSource
 func (i *ImageSource) Close() error {
-	return i.source.Close()
+	if i.source != nil {
+		return i.source.Close()
+	}
+	return nil
 }
 
 // GetRegistry returns the registry of a ImageSource

@@ -5,15 +5,16 @@ import (
 	"time"
 	"strconv"
 	"path/filepath"
+	"context"
 )
 
 type TaskContext struct{
 	log          CtxLogger
 	download     int64
-	kbDown       int64
-	kbUp         int64
-	secDown      int64
-	secUp        int64
+	byteDown     int64
+	byteUp       int64
+	timeDown     time.Duration
+	timeUp       time.Duration
 	secStart     int64
 	secEnd       int64
 	parallelism  int
@@ -22,13 +23,16 @@ type TaskContext struct{
 	totalTask    int
 	waitTask     int
 	statChan     chan int
-	cancelled    bool
 	Cache        *LocalCache
 	Temp         *LocalTemp
+	History      *History
 	TarWriter    []*ImageCompressedTarWriter
 	SingleWriter *SingleTarWriter
 	CompMeta     *CompressionMetadata
 	SquashfsTar  *SquashfsTar
+	Context      context.Context
+	CancelFunc   context.CancelFunc
+	Notify       Notify
 }
 
 func NewTaskContext(log CtxLogger, lc *LocalCache, lt *LocalTemp) *TaskContext {
@@ -57,29 +61,25 @@ func (t *TaskContext) Error(logStr string) {
 }
 
 func (t *TaskContext) Errorf(format string, args ...interface{}) error {
-	if len(args) > 0 {
-		return t.log.Errorf(format, args)
-	} else {
-		return t.log.Errorf(format)
-	}
+	return t.log.Errorf(format, args...)
 }
 
-func (t *TaskContext) StatDown(size int64, seconds int64) {
+func (t *TaskContext) StatDown(size int64, duration time.Duration) {
 	t.statChan <- 1
 	defer func() {
 		<-t.statChan
 	}()
-	t.kbDown = t.kbDown + size
-	t.secDown = t.secDown + seconds
+	t.byteDown = t.byteDown + size
+	t.timeDown = t.timeDown + duration
 }
 
-func (t *TaskContext) StatUp(size int64, seconds int64) {
+func (t *TaskContext) StatUp(size int64, duration time.Duration) {
 	t.statChan <- 1
 	defer func() {
 		<-t.statChan
 	}()
-	t.kbUp = t.kbUp + size
-	t.secUp = t.secUp + seconds
+	t.byteUp = t.byteUp + size
+	t.timeUp = t.timeUp + duration
 }
 
 func (t *TaskContext) UpdateCurrentConn(n int) {
@@ -91,10 +91,10 @@ func (t *TaskContext) UpdateCurrentConn(n int) {
 }
 
 func (t *TaskContext) Reset() {
-	t.kbDown = 0
-	t.kbUp = 0
-	t.secDown = 1
-	t.secUp = 1
+	t.byteDown = 0
+	t.byteUp = 0
+	t.timeDown = 1
+	t.timeUp = 1
 	t.secStart = 0
 	t.secEnd = 0
 	t.parallelism = 0
@@ -102,11 +102,11 @@ func (t *TaskContext) Reset() {
 	t.invalidTask = 0
 	t.totalTask = 0
 	t.waitTask = 0
-	t.cancelled = false
 	t.SingleWriter = nil
 	t.TarWriter = nil
 	t.CompMeta = nil
 	t.SquashfsTar = nil
+	t.Context, t.CancelFunc = context.WithCancel(context.Background())
 }
 
 func (t *TaskContext) CloseTarWriter() {
@@ -168,20 +168,20 @@ func (t *TaskContext) UpdateTotalTask(n int) {
 	t.totalTask = n
 }
 
+func (t *TaskContext) GetTotalTask() int {
+	return t.totalTask
+}
+
+func (t *TaskContext) Cancel() bool {
+	return t.Context.Err() != nil
+}
+
 func (t *TaskContext) UpdateSecStart(n int64) {
 	t.secStart = n
 }
 
 func (t *TaskContext) UpdateSecEnd(n int64) {
 	t.secEnd = n
-}
-
-func (t *TaskContext) SetCancel() {
-	t.cancelled = true
-}
-
-func (t *TaskContext) Cancel() bool {
-	return t.cancelled
 }
 
 func  (t *TaskContext) GetStatus() string {
@@ -193,7 +193,7 @@ func  (t *TaskContext) GetStatus() string {
 			totalSec = time.Now().Unix() - t.secStart
 		}
 	}
-	return fmt.Sprintf(I18n.Sprintf("Invalid:%v Total:%v Success:%v Failed:%v Doing:%v Down:%s/s Up:%s/s, Total Down:%s Up:%s Time:%s",
+	return fmt.Sprintf(I18n.Sprintf("Invalid:%v All:%v OK:%v Err:%v Doing:%v Speed:^%s/s v%s/s Total:^%s v%s Time:%s",
 		t.invalidTask, t.totalTask, t.totalTask - t.waitTask - t.failedTask - t.parallelism, t.failedTask,
-		t.parallelism, FormatByteSize(t.kbDown/t.secDown), FormatByteSize(t.kbUp/t.secUp), FormatByteSize(t.kbDown), FormatByteSize(t.kbUp),FormatSeconds(totalSec)))
+		t.parallelism, FormatByteSize(int64(float64(t.byteDown)/(float64(t.timeDown)/float64(time.Second)))), FormatByteSize(int64(float64(t.byteUp)/(float64(t.timeUp)/float64(time.Second)))), FormatByteSize(t.byteDown), FormatByteSize(t.byteUp),FormatSeconds(totalSec)))
 }
