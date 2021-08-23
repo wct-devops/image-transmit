@@ -12,7 +12,7 @@
 - 并发数和重试数支持可配置，可以根据网络条件调整，充分利用带宽
 - 支持直传模式，可以将镜像直接从A仓库传到B仓库，中间不落地
 - 支持Windows界面/Windows命令行/Linux命令行的使用方式(龙舟版新增)
-- 支持离线模式，可以下载模式将镜像压缩为压缩包，然后上传模式将文件上传到目标仓库(龙舟版新增)
+- 支持离线模式，用下载模式将镜像压缩为压缩包，然后上传模式将文件上传到目标仓库(龙舟版新增)
 - 离线模式支持快速压缩，比docker save|gzip的方式更快，压缩比更高(龙舟版新增)
 - 离线模式支持增量发布，可以将上次发布的镜像层跳过，从而大幅降低压缩包大小(龙舟版新增)
 - 上传模式支持直接将镜像导入到本地的Docker中，而非一个仓库(龙舟版新增)
@@ -24,12 +24,12 @@
 在工具的目录下,放置一个配置文件cfg.yaml(或者data目录下),其内容参考如下：
 ```yaml
 source: # 源仓库信息配置,可以支持多个
-  registry: "http://10.45.80.1"
+- registry: "http://10.45.80.1"
   user: #用户名和密码，如果匿名访问，用户名和密码都留空即可
   password:
   #name: #可选配置,指定名称
 target:  # 目标仓库信息配置,可以支持多个
-  registry: "http://10.45.46.109"
+- registry: "http://10.45.46.109"
   user:
   password:
   #repository: # 可选配置，是否修改镜像名称，假如填写值yyyy，则会将源仓库的10.45.80.1/xxxx/image:tag统一改成10.45.46.109/yyyy/image:tag
@@ -104,7 +104,7 @@ target:  # 目标仓库信息配置,可以支持多个
 > 通常下载时选择使用几个并发，就会产生几个独立数据文件，但是某些场景下，用户希望只需要一个数据文件，方便传输，则可以打开【单一文件】的开关。打开这个开关后，文件都会先被下载到临时目录中，最后被合并成一个文件，因此占用空间和IO，时间也会更长。
 > 如果下载时是在同一个局域网内，不存在网络瓶颈，可以在界面上设置并发度为1或者在cfg.yaml中增加一个maxconn=1的配置，只使用一个网络线程，也可以实现只生成一个文件，并且避免了本地操作，可以验证一下两种方式哪种更快。
 
-## 命令行模式
+### 命令行模式
 龙舟版开始同时支持windows和linux下命令行方式进行传输：
 
 1. 由于需要通过命令行来指定源/目标仓库信息，因此建议在配置文件中为每个仓库配置一个name，以方便使用。如果不指定，则默认的name为"registry-repository"
@@ -225,6 +225,7 @@ C:\Users\WangYuMu\go\src\github.com\wct-devops\image-transmit\cmd>(echo 10.45.80
 - image-transmit-cmd.zip : Windows命令行版
 - image-transmit-gui.zip : Windows桌面版
 - image-transmit-arm.zip : Linux ARM命令行版
+- image-transmit-darwin.zip : Darwin命令行版
 
 ### 多语言支持
 目前支持中英两种语言，会自动根据操作系统的设置自动切换。如果想强制切换，有两种方式：
@@ -233,10 +234,12 @@ C:\Users\WangYuMu\go\src\github.com\wct-devops\image-transmit\cmd>(echo 10.45.80
 
 ### 致谢
 使用到的开源库:  
-https://github.com/AliyunContainerService/image-syncer  
-https://github.com/lxn/walk  
-https://github.com/klauspost/compress/zstd  
-https://github.com/ulikunitz/xz  
-https://github.com/pierrec/lz4  
-  
+github.com/AliyunContainerService/image-syncer  
+github.com/lxn/walk  
+github.com/klauspost/compress/zstd  
+github.com/ulikunitz/xz  
+github.com/pierrec/lz4  
+github.com/mcuadros/go-version  
+github.com/blinkbean/dingtalk  
+
 碰到问题欢迎大家提issue

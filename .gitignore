@@ -10,6 +10,8 @@
 /cmd/image-transmit-arm.zip
 /cmd/image-transmit-cmd.exe
 /cmd/image-transmit-cmd.zip
+/cmd/image-transmit-darwin
+/cmd/image-transmit-darwin.zip
 /win/image-transmit.exe
 /win/image-transmit-gui.zip
 /.idea/

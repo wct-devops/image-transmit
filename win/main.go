@@ -88,10 +88,6 @@ func main() {
 		}
 	}
 
-	cfgFile, err = ioutil.ReadFile("cfg.yaml")
-	if err != nil {
-		log.Error(I18n.Sprintf("Read cfg.yaml failed: %v", err))
-	}
 	err = yaml.Unmarshal(cfgFile, conf)
 
 	if len(conf.Compressor) == 0 {

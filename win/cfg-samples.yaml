@@ -1,10 +1,10 @@
 source: # 源仓库信息配置,可以支持多个
-  registry: "http://10.45.80.1"
+- registry: "http://10.45.80.1"
   user: #用户名和密码，如果匿名访问，用户名和密码都留空即可
   password:
   #name: #可选配置,指定名称
 target:  # 目标仓库信息配置,可以支持多个
-  registry: "http://10.45.46.109"
+- registry: "http://10.45.46.109"
   user:
   password:
   #repository: # 可选配置，是否修改镜像名称，假如填写值yyyy，则会将源仓库的10.45.80.1/xxxx/image:tag统一改成10.45.46.109/yyyy/image:tag
