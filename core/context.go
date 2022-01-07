@@ -193,7 +193,7 @@ func  (t *TaskContext) GetStatus() string {
 			totalSec = time.Now().Unix() - t.secStart
 		}
 	}
-	return fmt.Sprintf(I18n.Sprintf("Invalid:%v All:%v OK:%v Err:%v Doing:%v Speed:^%s/s v%s/s Total:^%s v%s Time:%s",
+	return fmt.Sprintf(I18n.Sprintf("Invalid:%v All:%v OK:%v Err:%v Doing:%v Speed:v%s/s ^%s/s Total:v%s ^%s Time:%s",
 		t.invalidTask, t.totalTask, t.totalTask - t.waitTask - t.failedTask - t.parallelism, t.failedTask,
 		t.parallelism, FormatByteSize(int64(float64(t.byteDown)/(float64(t.timeDown)/float64(time.Second)))), FormatByteSize(int64(float64(t.byteUp)/(float64(t.timeUp)/float64(time.Second)))), FormatByteSize(t.byteDown), FormatByteSize(t.byteUp),FormatSeconds(totalSec)))
 }

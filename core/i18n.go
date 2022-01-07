@@ -120,7 +120,7 @@ func init() {
 	message.SetString(language.Chinese, "Generated a download task for %s",   "完成 %s下载任务创建")
 	message.SetString(language.Chinese, "Generated a upload task for %s",   "完成 %s 上传任务创建")
 	message.SetString(language.Chinese, "Create data file: %s",   "生成数据文件: %s")
-	message.SetString(language.Chinese, "Invalid:%v All:%v OK:%v Err:%v Doing:%v Speed:^%s/s v%s/s Total:^%s v%s Time:%s",   "无效:%v 总计:%v 成功:%v 失败:%v 处理中:%v 速度:上%s/s 下%s/s 总计:上%s 下%s 耗时:%s")
+	message.SetString(language.Chinese, "Invalid:%v All:%v OK:%v Err:%v Doing:%v Speed:v%s/s ^%s/s Total:v%s ^%s Time:%s",   "无效:%v 总计:%v 成功:%v 失败:%v 处理中:%v 速度:下%s/s 上%s/s 总计:下%s 上%s 耗时:%s")
 	message.SetString(language.Chinese, "Day",   "天")
 	message.SetString(language.Chinese, "Hou",   "时")
 	message.SetString(language.Chinese, "Min",   "分")

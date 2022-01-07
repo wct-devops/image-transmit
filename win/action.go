@@ -123,6 +123,7 @@ func (mw *MyMainWindow) getInputList() [][] string {
 
 	input := mw.teInput.Text()
 	input = strings.ReplaceAll(input, "\t", "")
+
 	if invalidChar(strings.ReplaceAll(strings.ReplaceAll(input, "\r", ""), "\n", "")) {
 		walk.MsgBox(mw.mainWindow,
 			I18n.Sprintf("Input Error"),
@@ -225,7 +226,7 @@ func (mw *MyMainWindow) Watch() {
 			mw.ctx.History, err = NewHistory(hisFile)
 			if err != nil {
 				log.Error(err)
-				return
+				panic(err)
 			}
 
 			for {
@@ -256,7 +257,7 @@ func (mw *MyMainWindow) Watch() {
 					if err != nil {
 						c.PutAInvalidTask(srcUrl)
 						mw.ctx.Error(I18n.Sprintf("Fetch tag list failed for %v with error: %v", srcURL, err))
-						return
+						continue
 					}
 
 					for _, tag := range tags {
@@ -296,12 +297,12 @@ func (mw *MyMainWindow) Watch() {
 				}
 				mw.ctx.UpdateTotalTask(mw.ctx.GetTotalTask() + c.TaskLen())
 				c.Run()
-
 				select {
 				case <-mw.ctx.Context.Done():
 					mw.ctx.Errorf(I18n.Sprintf("User cancelled..."))
 					return
 				case <-time.After(time.Duration(interval) * time.Second):
+					c.ClearInvalidTask()
 					continue
 				}
 			}
@@ -324,7 +325,17 @@ func (mw *MyMainWindow) Download() {
 		return
 	}
 
-	pathname := filepath.Join(home, time.Now().Format("20060102"))
+	var prefixPathname string
+	var prefixFilename string
+	if len(conf.OutPrefix) > 0 {
+		prefixPathIdx := strings.LastIndex(conf.OutPrefix, string(os.PathSeparator))
+		if prefixPathIdx > 0 {
+			prefixPathname = conf.OutPrefix[0 : prefixPathIdx]
+			prefixFilename = conf.OutPrefix[prefixPathIdx + 1 : ]
+		}
+	}
+
+	pathname := filepath.Join(home, time.Now().Format("20060102"), prefixPathname)
 	_, err = os.Stat(pathname)
 	if os.IsNotExist(err) {
 		os.MkdirAll(pathname, os.ModePerm)
@@ -337,8 +348,8 @@ func (mw *MyMainWindow) Download() {
 		workName = time.Now().Format("img_full_200601021504")
 	}
 
-	if len(conf.OutPrefix) > 0 {
-		workName = conf.OutPrefix + "_" + workName
+	if len(prefixFilename) > 0 {
+		workName = prefixFilename + "_" + workName
 	}
 
 	mw.ctx.CreateCompressionMetadata(mw.compressor)

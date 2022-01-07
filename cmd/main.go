@@ -441,7 +441,17 @@ func download(ctx *TaskContext) error {
 	}
 	c, _ := Newlient(conf.MaxConn, conf.Retries, ctx)
 
-	pathname := filepath.Join(home, time.Now().Format("20060102"))
+	var prefixPathname string
+	var prefixFilename string
+	if len(conf.OutPrefix) > 0 {
+		prefixPathIdx := strings.LastIndex(conf.OutPrefix, string(os.PathSeparator))
+		if prefixPathIdx > 0 {
+			prefixPathname = conf.OutPrefix[0 : prefixPathIdx]
+			prefixFilename = conf.OutPrefix[prefixPathIdx + 1 : ]
+		}
+	}
+
+	pathname := filepath.Join(home, time.Now().Format("20060102"), prefixPathname)
 	_, err := os.Stat(pathname)
 	if os.IsNotExist(err) {
 		os.MkdirAll(pathname, os.ModePerm)
@@ -454,8 +464,8 @@ func download(ctx *TaskContext) error {
 		workName = time.Now().Format("img_full_200601021504")
 	}
 
-	if len(conf.OutPrefix) > 0 {
-		workName = conf.OutPrefix + "_" + workName
+	if len(prefixFilename) > 0 {
+		workName = prefixFilename + "_" + workName
 	}
 
 	ctx.CreateCompressionMetadata(conf.Compressor)

@@ -409,6 +409,7 @@ func (mw *MyMainWindow) updateWindowsNewLine() {
 	input := mw.teInput.Text()
 	input = strings.Replace(input, "\r\n", "\n", -1)
 	input = strings.Replace(input, "\n", "\r\n", -1)
+	input = strings.Replace(input, " ", "\r\n", -1)
 	mw.teInput.SetText(input)
 }
 

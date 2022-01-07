@@ -148,7 +148,7 @@ func (s *SingleTarWriter) Run() {
 			if err != nil {
 				panic(err)
 			}
-			s.t.AppendFileStream(file.Name(), ff.Size(), file )
+			s.t.AppendFileStream(ff.Name(), ff.Size(), file )
 			s.t.Flush()
 		}
 	}

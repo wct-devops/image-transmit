@@ -235,6 +235,14 @@ func (c *Client) PutAInvalidTask(invalidTask string) {
 	c.invalidTasks = append(c.invalidTasks, invalidTask)
 }
 
+func (c *Client) ClearInvalidTask() {
+	c.invalidTaskListChan <- 1
+	defer func() {
+		<-c.invalidTaskListChan
+	}()
+	c.invalidTasks = []string{}
+}
+
 func (c *Client) TaskLen() int {
 	return c.taskList.Len()
 }
