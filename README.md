@@ -14,9 +14,9 @@
 
 #### 下载支持Docker兼容的格式
 在配置文件中将singlefile和dockerfile两个配置项设置为true后，下载的tar包即可以直接使用docker或者ctr命令导入到本地。
-比如使用Docker命令的优势有：
+比直接使用Docker命令的优势有：
 - 无须安装docker，在windows(界面)和linux都可以使用
-- 中间无多次解压的过程，速度更快
+- 中间无多次加解压的过程，速度更快
 - 可以通过缓存加速下载
 
 #### 下载导入containerd主机
