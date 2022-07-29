@@ -1,11 +1,12 @@
 package core
 
 import (
-	"os"
-	"gopkg.in/yaml.v2"
-	log "github.com/cihub/seelog"
 	"io/ioutil"
+	"os"
 	"time"
+
+	log "github.com/cihub/seelog"
+	"gopkg.in/yaml.v2"
 )
 
 type History struct {
@@ -16,12 +17,15 @@ type History struct {
 
 func NewHistory(fileName string) (*History, error) {
 	file, err := ioutil.ReadFile(fileName)
-	if err != nil && os.IsNotExist(err) == false {
+	if err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 	imageHistory := make(map[string]string)
 	if len(file) > 0 {
 		err = yaml.Unmarshal(file, imageHistory)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &History{
@@ -31,7 +35,7 @@ func NewHistory(fileName string) (*History, error) {
 	}, nil
 }
 
-func (h *History) Add(url string){
+func (h *History) Add(url string) {
 	h.hisChan <- 1
 	defer func() {
 		<-h.hisChan
@@ -47,7 +51,7 @@ func (h *History) Add(url string){
 	}
 }
 
-func (h *History) Skip(url string) bool{
+func (h *History) Skip(url string) bool {
 	h.hisChan <- 1
 	defer func() {
 		<-h.hisChan
@@ -59,7 +63,3 @@ func (h *History) Skip(url string) bool{
 		return true
 	}
 }
-
-
-
-

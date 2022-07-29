@@ -1,15 +1,17 @@
 package core
 
 import (
+	"container/list"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"container/list"
+
 	log "github.com/cihub/seelog"
 )
 
 type LocalTemp struct {
-	files    * list.List
+	files    *list.List
 	tempPath string
 }
 
@@ -20,25 +22,29 @@ func NewLocalTemp(pathname string) *LocalTemp {
 	}
 	return &LocalTemp{
 		tempPath: pathname,
-		files :   list.New(),
+		files:    list.New(),
 	}
 }
 
-func (t *LocalTemp) SavePath(path string) (string, error){
-	fullPathName := filepath.Join( t.tempPath, path )
+func (t *LocalTemp) SavePath(path string) (string, error) {
+	fullPathName := filepath.Join(t.tempPath, path)
 	t.files.PushBack(fullPathName)
 	return fullPathName, os.MkdirAll(fullPathName, os.ModePerm)
 }
 
-func (t *LocalTemp) SaveFile(filename string, reader io.ReadCloser) (string, error)  {
-	fullFilename := filepath.Join( t.tempPath, filename )
+func (t *LocalTemp) SaveFile(filename string, reader io.ReadCloser, size int64) (string, error) {
+	fullFilename := filepath.Join(t.tempPath, filename)
 	file, err := os.Create(fullFilename)
-	defer file.Close()
 	if err != nil {
 		return fullFilename, err
+	} else {
+		defer file.Close()
 	}
-	_, err = io.Copy(file, reader)
+	ws, err := io.Copy(file, reader)
 	reader.Close()
+	if err == nil && ws != size {
+		err = fmt.Errorf("file %s content size mismatch, %v VS %v, network or file system problem", filename, ws, size)
+	}
 	if err == nil {
 		t.files.PushBack(fullFilename)
 	}

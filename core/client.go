@@ -2,8 +2,8 @@ package core
 
 import (
 	"container/list"
-	"sync"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -27,13 +27,13 @@ type Client struct {
 	retries        int
 	ctx            *TaskContext
 	// mutex
-	taskListChan       chan int
-	failedTaskListChan chan int
+	taskListChan        chan int
+	failedTaskListChan  chan int
 	invalidTaskListChan chan int
 }
 
-// Newlient creates a syncronization client
-func Newlient(routineNum int, retries int, logger *TaskContext) (*Client, error) {
+// NewClient creates a syncronization client
+func NewClient(routineNum int, retries int, logger *TaskContext) (*Client, error) {
 	return &Client{
 		taskList:            list.New(),
 		failedTaskList:      list.New(),
@@ -102,7 +102,7 @@ func (c *Client) Run() {
 	}
 
 	c.ctx.Info(I18n.Sprintf("Task completed, total %v tasks with %v failed", c.ctx.totalTask, c.failedTaskList.Len()))
-	if c.failedTaskList.Len() >0 {
+	if c.failedTaskList.Len() > 0 {
 		var failListText string
 		for e := c.failedTaskList.Front(); e != nil; e = e.Next() {
 			t := e.Value.(Task)
@@ -116,16 +116,16 @@ func (c *Client) Run() {
 	}
 }
 
-func (c *Client) GenerateOnlineTask(imgSrc string, userSrc string, pswdStr string, imgDst string, userDst string, pswdDst string) error{
-	srcURL, err := NewRepoURL(strings.TrimPrefix(strings.TrimPrefix(imgSrc, "https://"), "http://"))
-	imageSourceSrc, err := NewImageSource(c.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), srcURL.GetTag(), userSrc, pswdStr, !strings.HasPrefix(imgSrc,"https") )
+func (c *Client) GenerateOnlineTask(imgSrc string, userSrc string, pswdStr string, imgDst string, userDst string, pswdDst string) error {
+	srcURL, _ := NewRepoURL(strings.TrimPrefix(strings.TrimPrefix(imgSrc, "https://"), "http://"))
+	imageSourceSrc, err := NewImageSource(c.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), srcURL.GetTag(), userSrc, pswdStr, !strings.HasPrefix(imgSrc, "https"))
 	if err != nil {
 		c.PutAInvalidTask(imgSrc)
 		return c.ctx.Errorf(I18n.Sprintf("Url %s format error: %v, skipped", imgSrc, err))
 	}
 
-	dstURL, err := NewRepoURL(strings.TrimPrefix(strings.TrimPrefix(imgDst, "https://"), "http://"))
-	imageSourceDst, err := NewImageDestination(c.ctx.Context, dstURL.GetRegistry(), dstURL.GetRepoWithNamespace(), dstURL.GetTag(), userDst, pswdDst, !strings.HasPrefix(imgDst,"https") )
+	dstURL, _ := NewRepoURL(strings.TrimPrefix(strings.TrimPrefix(imgDst, "https://"), "http://"))
+	imageSourceDst, err := NewImageDestination(c.ctx.Context, dstURL.GetRegistry(), dstURL.GetRepoWithNamespace(), dstURL.GetTag(), userDst, pswdDst, !strings.HasPrefix(imgDst, "https"))
 	if err != nil {
 		c.PutAInvalidTask(imgDst)
 		return c.ctx.Errorf(I18n.Sprintf("Url %s format error: %v, skipped", imgDst, err))
@@ -137,28 +137,29 @@ func (c *Client) GenerateOnlineTask(imgSrc string, userSrc string, pswdStr strin
 }
 
 func (c *Client) GenerateOfflineDownTask(url string, username string, password string) error {
-	srcURL, err := NewRepoURL(strings.TrimPrefix(strings.TrimPrefix(url,"https://"),"http://"))
+	srcURL, err := NewRepoURL(strings.TrimPrefix(strings.TrimPrefix(url, "https://"), "http://"))
 	if err != nil {
 		c.PutAInvalidTask(url)
 		return c.ctx.Errorf(I18n.Sprintf("Url %s format error: %v, skipped", url, err))
 	}
 	is, err := NewImageSource(c.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), srcURL.GetTag(),
-		username, password, !strings.HasPrefix(url, "https://") )
+		username, password, !strings.HasPrefix(url, "https://"))
 	if err != nil {
 		c.PutAInvalidTask(url)
 		return c.ctx.Errorf(I18n.Sprintf("Url %s format error: %v, skipped", url, err))
 	}
 
 	c.PutATask(NewOfflineDownTask(c.ctx, url, is))
-	c.ctx.Info(I18n.Sprintf("Generated a download task for %s", srcURL.GetURL() ))
+	c.ctx.Info(I18n.Sprintf("Generated a download task for %s", srcURL.GetURL()))
 	return nil
 }
 
 func (c *Client) GenerateOfflineUploadTask(srcUrl string, url string, path string, username string, password string) error {
 	var ids *ImageDestination
 	if url != "" {
-		dstURL, err := NewRepoURL(strings.TrimPrefix(strings.TrimPrefix(url, "https://"), "http://"))
-		ids, err = NewImageDestination(c.ctx.Context, dstURL.GetRegistry(), dstURL.GetRepoWithNamespace(), dstURL.GetTag(), username, password, !strings.HasPrefix(url,"https") )
+		dstURL, _ := NewRepoURL(strings.TrimPrefix(strings.TrimPrefix(url, "https://"), "http://"))
+		var err error
+		ids, err = NewImageDestination(c.ctx.Context, dstURL.GetRegistry(), dstURL.GetRepoWithNamespace(), dstURL.GetTag(), username, password, !strings.HasPrefix(url, "https"))
 		if err != nil {
 			c.PutAInvalidTask(url)
 			return c.ctx.Errorf(I18n.Sprintf("Url %s format error: %v, skipped", url, err))
@@ -166,9 +167,9 @@ func (c *Client) GenerateOfflineUploadTask(srcUrl string, url string, path strin
 	}
 	c.PutATask(NewOfflineUploadTask(c.ctx, ids, srcUrl, path))
 	if url == "" {
-		c.ctx.Info(I18n.Sprintf("Generated a upload task for %s", srcUrl ))
+		c.ctx.Info(I18n.Sprintf("Generated a upload task for %s", srcUrl))
 	} else {
-		c.ctx.Info(I18n.Sprintf("Generated a upload task for %s", url ))
+		c.ctx.Info(I18n.Sprintf("Generated a upload task for %s", url))
 	}
 	return nil
 }

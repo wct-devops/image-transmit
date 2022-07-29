@@ -1,16 +1,15 @@
 package core
 
 import (
-	"fmt"
-	"time"
-	"strconv"
-	"path/filepath"
 	"context"
+	"fmt"
+	"path/filepath"
+	"strconv"
+	"time"
 )
 
-type TaskContext struct{
+type TaskContext struct {
 	log          CtxLogger
-	download     int64
 	byteDown     int64
 	byteUp       int64
 	timeDown     time.Duration
@@ -33,6 +32,7 @@ type TaskContext struct{
 	Context      context.Context
 	CancelFunc   context.CancelFunc
 	Notify       Notify
+	DockerTarget string
 }
 
 func NewTaskContext(log CtxLogger, lc *LocalCache, lt *LocalTemp) *TaskContext {
@@ -122,28 +122,28 @@ func (t *TaskContext) CreateSquashfsTar(tempPath string, workPath string, squash
 	return err
 }
 
-func (t *TaskContext) CreateSingleWriter(pathname string, filename string, compression string) error{
+func (t *TaskContext) CreateSingleWriter(pathname string, filename string, compression string) error {
 	var err error
 	tarName := filename + "." + compression
-	t.Info(I18n.Sprintf("Create data file: %s", tarName ))
+	t.Info(I18n.Sprintf("Create data file: %s", tarName))
 	t.CompMeta.AddDatafile(tarName, 0)
-	t.SingleWriter, err = NewSingleTarWriter( filepath.Join(pathname, tarName) , compression)
-	return  err
+	t.SingleWriter, err = NewSingleTarWriter(t, filepath.Join(pathname, tarName), compression)
+	return err
 }
 
-func (t *TaskContext) CreateCompressionMetadata(compressor string) error{
+func (t *TaskContext) CreateCompressionMetadata(compressor string) error {
 	var err error
 	t.CompMeta, err = NewCompressionMetadata(compressor)
 	return err
 }
 
-func (t *TaskContext) CreateTarWriter(pathname string, filename string, compression string, num int) error{
+func (t *TaskContext) CreateTarWriter(pathname string, filename string, compression string, num int) error {
 	t.TarWriter = make([]*ImageCompressedTarWriter, num)
 	for i := range t.TarWriter {
 		tarName := filename + "_" + strconv.Itoa(i) + "." + compression
-		t.Info(I18n.Sprintf("Create data file: %s", tarName ))
+		t.Info(I18n.Sprintf("Create data file: %s", tarName))
 		t.CompMeta.AddDatafile(tarName, 0)
-		tar, err := NewImageCompressedTarWriter( filepath.Join(pathname, tarName), compression)
+		tar, err := NewImageCompressedTarWriter(filepath.Join(pathname, tarName), compression)
 		if err != nil {
 			return err
 		}
@@ -184,7 +184,7 @@ func (t *TaskContext) UpdateSecEnd(n int64) {
 	t.secEnd = n
 }
 
-func  (t *TaskContext) GetStatus() string {
+func (t *TaskContext) GetStatus() string {
 	var totalSec int64 = 0
 	if t.secStart > 0 {
 		if t.secEnd > 0 {
@@ -193,7 +193,7 @@ func  (t *TaskContext) GetStatus() string {
 			totalSec = time.Now().Unix() - t.secStart
 		}
 	}
-	return fmt.Sprintf(I18n.Sprintf("Invalid:%v All:%v OK:%v Err:%v Doing:%v Speed:v%s/s ^%s/s Total:v%s ^%s Time:%s",
-		t.invalidTask, t.totalTask, t.totalTask - t.waitTask - t.failedTask - t.parallelism, t.failedTask,
-		t.parallelism, FormatByteSize(int64(float64(t.byteDown)/(float64(t.timeDown)/float64(time.Second)))), FormatByteSize(int64(float64(t.byteUp)/(float64(t.timeUp)/float64(time.Second)))), FormatByteSize(t.byteDown), FormatByteSize(t.byteUp),FormatSeconds(totalSec)))
+	return fmt.Sprint(I18n.Sprintf("Invalid:%v All:%v OK:%v Err:%v Doing:%v Speed:v%s/s ^%s/s Total:v%s ^%s Time:%s",
+		t.invalidTask, t.totalTask, t.totalTask-t.waitTask-t.failedTask-t.parallelism, t.failedTask,
+		t.parallelism, FormatByteSize(int64(float64(t.byteDown)/(float64(t.timeDown)/float64(time.Second)))), FormatByteSize(int64(float64(t.byteUp)/(float64(t.timeUp)/float64(time.Second)))), FormatByteSize(t.byteDown), FormatByteSize(t.byteUp), FormatSeconds(totalSec)))
 }

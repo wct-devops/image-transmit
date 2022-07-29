@@ -2,31 +2,25 @@ package main
 
 import (
 	"flag"
-	"io/ioutil"
-	"path/filepath"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
-	"gopkg.in/yaml.v2"
-	. "github.com/wct-devops/image-transmit/core"
-	"runtime"
+
 	log "github.com/cihub/seelog"
 	"github.com/mcuadros/go-version"
+	. "github.com/wct-devops/image-transmit/core"
+	"gopkg.in/yaml.v2"
 )
 
 var (
-	home      = "data"
-	tempDir   = filepath.Join(home, "temp")
-	hisFile   = filepath.Join(home, "history.yaml")
-	conf      = new(YamlCfg)
-	increment = false
-	squashfs  = true
 	end       = false
-	interval  = 60
 	srcRepo   *Repo
 	dstRepo   *Repo
-	imgList   [][]string
+	imgList   []string
 	flConfSrc *string
 	flConfDst *string
 	flConfLst *string
@@ -36,49 +30,26 @@ var (
 	flConfWat *bool
 )
 
-type Repo struct {
-	Name       string `yaml:"name"`
-	User       string `yaml:"user"`
-	Registry   string `yaml:"registry"`
-	Password   string `yaml:"password"`
-	Repository string `yaml:"repository,omitempty"`
-}
-
-type YamlCfg struct {
-	SrcRepos   [] Repo          `yaml:"source",omitempty"`
-	DstRepos   [] Repo          `yaml:"target",omitempty"`
-	MaxConn    int              `yaml:"maxconn,omitempty"`
-	Retries    int              `yaml:"retries,omitempty"`
-	SingleFile bool             `yaml:"singlefile,omitempty"`
-	Compressor string           `yaml:"compressor,omitempty"`
-	Squashfs   string           `yaml:"squashfs,omitempty"`
-	Cache      LocalCache       `yaml:"cache,omitempty"`
-	Lang       string           `yaml:"lang,omitempty"`
-	KeepTemp   bool             `yaml:"keeptemp,omitempty"`
-	OutPrefix  string           `yaml:"outprefix,omitempty"`
-	Interval   int              `yaml:"interval,omitempty"`
-	DingTalk   []DingTalkAccess `yaml:"dingtalk,omitempty"`
-}
-
 func main() {
 	InitI18nPrinter("")
 
 	var loggerCfg []byte
 	if _, err := os.Stat("logCfg.xml"); err == nil {
 		loggerCfg, _ = ioutil.ReadFile("logCfg.xml")
-	} else if _, err := os.Stat(filepath.Join(home, "logCfg.xml")); err == nil {
-		loggerCfg, _ = ioutil.ReadFile(filepath.Join(home, "logCfg.xml"))
+	} else if _, err := os.Stat(filepath.Join(HOME, "logCfg.xml")); err == nil {
+		loggerCfg, _ = ioutil.ReadFile(filepath.Join(HOME, "logCfg.xml"))
 	}
 	InitLogger(loggerCfg)
+	CONF = new(YamlCfg)
 
 	var cfgFile []byte
 	_, err := os.Stat("cfg.yaml")
 	if err != nil && os.IsNotExist(err) {
-		_, err = os.Stat(filepath.Join(home, "cfg.yaml"))
+		_, err = os.Stat(filepath.Join(HOME, "cfg.yaml"))
 		if err != nil && os.IsNotExist(err) {
 			fmt.Println(I18n.Sprintf("Read cfg.yaml failed: %v", err))
 		} else {
-			cfgFile, err = ioutil.ReadFile(filepath.Join(home, "cfg.yaml"))
+			cfgFile, err = ioutil.ReadFile(filepath.Join(HOME, "cfg.yaml"))
 			if err != nil {
 				fmt.Println(I18n.Sprintf("Read cfg.yaml failed: %v", err))
 			}
@@ -90,51 +61,55 @@ func main() {
 		}
 	}
 
-	err = yaml.Unmarshal(cfgFile, conf)
 	if err != nil {
-		fmt.Printf(I18n.Sprintf("Parse cfg.yaml file failed: %v, for instruction visit github.com/wct-devops/image-transmit", err))
+		return
+	}
+
+	err = yaml.Unmarshal(cfgFile, CONF)
+	if err != nil {
+		fmt.Print(I18n.Sprintf("Parse cfg.yaml file failed: %v, for instruction visit github.com/wct-devops/image-transmit", err))
 		os.Exit(1)
 	}
 
-	if conf.MaxConn == 0 {
-		conf.MaxConn = runtime.NumCPU()
+	if CONF.MaxConn == 0 {
+		CONF.MaxConn = runtime.NumCPU()
 	}
 
-	if conf.Retries == 0 {
-		conf.Retries = 2
+	if CONF.Retries == 0 {
+		CONF.Retries = 2
 	}
 
-	if conf.Interval > 0 {
-		interval = conf.Interval
+	if CONF.Interval > 0 {
+		INTERVAL = CONF.Interval
 	}
 
-	if len(conf.Compressor) == 0 {
+	if len(CONF.Compressor) == 0 {
 		if runtime.GOOS == "windows" {
-			conf.Compressor = "tar"
+			CONF.Compressor = "tar"
 		} else {
 			if TestSquashfs() && TestTar() && (len(os.Getenv("SUDO_UID")) > 0 || os.Geteuid() == 0) {
-				conf.Compressor = "squashfs"
+				CONF.Compressor = "squashfs"
 			} else {
-				conf.Compressor = "tar"
+				CONF.Compressor = "tar"
 			}
 		}
 	}
 
-	if conf.Compressor != "squashfs" {
-		squashfs = false
+	if CONF.Compressor != "squashfs" {
+		SQUASHFS = false
 	} else {
 		if runtime.GOOS != "windows" {
 			if TestSquashfs() && TestTar() && (len(os.Getenv("SUDO_UID")) > 0 || os.Geteuid() == 0) {
 				// ok
 			} else {
-				fmt.Printf(I18n.Sprintf("Squashfs condition check failed， we need root privilege(run as root or sudo) and squashfs-tools/tar installed\n"))
+				fmt.Print(I18n.Sprintf("Squashfs condition check failed, we need root privilege(run as root or sudo) and squashfs-tools/tar installed\n"))
 				return
 			}
 		}
 	}
 
-	if len(conf.Lang) > 1 {
-		InitI18nPrinter(conf.Lang)
+	if len(CONF.Lang) > 1 {
+		InitI18nPrinter(CONF.Lang)
 	}
 
 	flConfSrc = flag.String("src", "", I18n.Sprintf("Source repository name, default: the first repo in cfg.yaml"))
@@ -146,73 +121,75 @@ func main() {
 	flConfWat = flag.Bool("watch", false, I18n.Sprintf("Watch mode"))
 
 	flag.Usage = func() {
-		fmt.Println(I18n.Sprintf("Image Transmit-EastWind-WhaleCloud DevOps Team"))
-		fmt.Printf(I18n.Sprintf("%s [OPTIONS]\n", os.Args[0]))
-		fmt.Printf(I18n.Sprintf("Examples: \n"))
-		fmt.Printf(I18n.Sprintf("            Save mode:           %s -src=nj -lst=img.lst\n", os.Args[0]))
-		fmt.Printf(I18n.Sprintf("            Increment save mode: %s -src=nj -lst=img.lst -inc=img_full_202106122344_meta.yaml\n", os.Args[0]))
-		fmt.Printf(I18n.Sprintf("            Transmit mode:       %s -src=nj -lst=img.lst -dst=gz\n", os.Args[0]))
-		fmt.Printf(I18n.Sprintf("            Watch mode:          %s -src=nj -lst=img.lst -dst=gz --watch\n", os.Args[0]))
-		fmt.Printf(I18n.Sprintf("            Upload mode:         %s -dst=gz -img=img_full_202106122344_meta.yaml\n", os.Args[0]))
-		fmt.Printf(I18n.Sprintf("More description please refer to github.com/wct-devops/image-transmit\n"))
+		fmt.Println(I18n.Sprintf("Image Transmit-Ghang'e-WhaleCloud DevOps Team"))
+		fmt.Print(I18n.Sprintf("%s [OPTIONS]\n", os.Args[0]))
+		fmt.Print(I18n.Sprintf("Examples: \n"))
+		fmt.Print(I18n.Sprintf("            Save mode:           %s -src=nj -lst=img.lst\n", os.Args[0]))
+		fmt.Print(I18n.Sprintf("            Increment save mode: %s -src=nj -lst=img.lst -inc=img_full_202106122344_meta.yaml\n", os.Args[0]))
+		fmt.Print(I18n.Sprintf("            Transmit mode:       %s -src=nj -lst=img.lst -dst=gz\n", os.Args[0]))
+		fmt.Print(I18n.Sprintf("            Watch mode:          %s -src=nj -lst=img.lst -dst=gz --watch\n", os.Args[0]))
+		fmt.Print(I18n.Sprintf("            Upload mode:         %s -dst=gz -img=img_full_202106122344_meta.yaml [-lst=img.lst]\n", os.Args[0]))
+		fmt.Print(I18n.Sprintf("More description please refer to github.com/wct-devops/image-transmit\n"))
 		flag.PrintDefaults()
 	}
 	flag.Parse()
 
 	if len(*flConfSrc) > 0 {
-		for _, v := range (conf.SrcRepos) {
+		for _, v := range CONF.SrcRepos {
 			if v.Name == *flConfSrc {
 				srcRepo = &v
 				break
 			}
 		}
 		if srcRepo == nil {
-			fmt.Printf(I18n.Sprintf("Could not find repo: %s", *flConfSrc))
+			fmt.Print(I18n.Sprintf("Could not find repo: %s", *flConfSrc))
 			return
 		}
 	}
 
-	conf.DstRepos = append(conf.DstRepos, Repo{
+	CONF.DstRepos = append(CONF.DstRepos, Repo{
 		Name: "docker",
+	}, Repo{
+		Name: "ctr",
 	})
 
 	if len(*flConfDst) > 0 {
-		for _, v := range (conf.DstRepos) {
+		for _, v := range CONF.DstRepos {
 			if v.Name == *flConfDst {
 				dstRepo = &v
 				break
 			}
 		}
 		if dstRepo == nil {
-			fmt.Printf(I18n.Sprintf("Could not find repo: %s", *flConfDst))
+			fmt.Print(I18n.Sprintf("Could not find repo: %s", *flConfDst))
 			return
 		}
 	}
 
 	if len(*flConfOut) > 0 {
-		conf.OutPrefix = *flConfOut
+		CONF.OutPrefix = *flConfOut
 	}
 
 	var lc *LocalCache
-	if conf.Cache.Pathname != "" {
+	if CONF.Cache.Pathname != "" {
 		keepDays := 7
 		keepSize := 10
-		if conf.Cache.KeepDays > 0 {
-			keepDays = conf.Cache.KeepDays
+		if CONF.Cache.KeepDays > 0 {
+			keepDays = CONF.Cache.KeepDays
 		}
-		if conf.Cache.KeepSize > 0 {
-			keepSize = conf.Cache.KeepSize
+		if CONF.Cache.KeepSize > 0 {
+			keepSize = CONF.Cache.KeepSize
 		}
-		lc = NewLocalCache(filepath.Join(home, conf.Cache.Pathname), keepDays, keepSize)
+		lc = NewLocalCache(filepath.Join(HOME, CONF.Cache.Pathname), keepDays, keepSize)
 	}
 
-	lt := NewLocalTemp(tempDir)
+	lt := NewLocalTemp(TEMP_DIR)
 	log := NewCmdLogger()
 
 	ctx := NewTaskContext(log, lc, lt)
 	ctx.Reset()
-	if len(conf.DingTalk) > 0 {
-		ctx.Notify = NewDingTalkWapper(conf.DingTalk)
+	if len(CONF.DingTalk) > 0 {
+		ctx.Notify = NewDingTalkWapper(CONF.DingTalk)
 	}
 
 	if len(*flConfSrc) > 0 && len(*flConfDst) > 0 {
@@ -277,35 +254,18 @@ func readImgList(ctx *TaskContext) error {
 
 func getInputList(input string) {
 	input = strings.ReplaceAll(input, "\t", "")
-	if invalidChar(strings.ReplaceAll(strings.ReplaceAll(input, "\r", ""), "\n", "")) {
+	if CheckInvalidChar(strings.ReplaceAll(strings.ReplaceAll(input, "\r", ""), "\n", "")) {
 		fmt.Println(I18n.Sprintf("Invalid chars in image list"))
 		return
 	}
-	imgStrArr := strings.Split(strings.ReplaceAll(input, "\r", ""), "\n")
-	for _, imgName := range imgStrArr {
+
+	for _, imgName := range strings.Split(strings.ReplaceAll(input, "\r", ""), "\n") {
 		imgName = strings.TrimSpace(imgName)
 		if imgName == "" {
 			continue
 		}
-		imgName = strings.TrimPrefix(
-			strings.TrimPrefix(
-				strings.TrimSpace(imgName), "http://"), "https://")
-		urlList := strings.Split(imgName, "/")
-		if strings.ContainsAny(urlList[0], ".") {
-			urlList = urlList[1:]
-		}
-		imgList = append(imgList, urlList)
+		imgList = append(imgList, imgName)
 	}
-}
-
-func invalidChar(text string) bool {
-	f := func(r rune) bool {
-		return r < ' ' || r > '~'
-	}
-	if strings.IndexFunc(text, f) != -1 {
-		return true
-	}
-	return false
 }
 
 func startReport(ctx *TaskContext) {
@@ -321,19 +281,14 @@ func startReport(ctx *TaskContext) {
 }
 
 func transmit(ctx *TaskContext) error {
-	c, err := Newlient(conf.MaxConn, conf.Retries, ctx)
-	if (err != nil) {
+	c, err := NewClient(CONF.MaxConn, CONF.Retries, ctx)
+	if err != nil {
 		ctx.Errorf("%v", err)
 		return err
 	}
-	for _, urlList := range imgList {
-		if dstRepo.Repository != "" {
-			c.GenerateOnlineTask(srcRepo.Registry+"/"+strings.Join(urlList, "/"), srcRepo.User, srcRepo.Password,
-				dstRepo.Registry+"/"+dstRepo.Repository+"/"+urlList[len(urlList)-1], dstRepo.User, dstRepo.Password)
-		} else {
-			c.GenerateOnlineTask(srcRepo.Registry+"/"+strings.Join(urlList, "/"), srcRepo.User, srcRepo.Password,
-				dstRepo.Registry+"/"+strings.Join(urlList, "/"), dstRepo.User, dstRepo.Password)
-		}
+	for _, rawURL := range imgList {
+		src, dst := GenRepoUrl(srcRepo.Registry, dstRepo.Registry, dstRepo.Repository, rawURL)
+		c.GenerateOnlineTask(src, srcRepo.User, srcRepo.Password, dst, dstRepo.User, dstRepo.Password)
 	}
 	ctx.UpdateTotalTask(c.TaskLen())
 	startReport(ctx)
@@ -343,36 +298,30 @@ func transmit(ctx *TaskContext) error {
 }
 
 func watch(ctx *TaskContext) error {
-	c, err := Newlient(conf.MaxConn, conf.Retries, ctx)
-	if (err != nil) {
+	c, err := NewClient(CONF.MaxConn, CONF.Retries, ctx)
+	if err != nil {
 		ctx.Errorf("%v", err)
 		return err
 	}
 
 	if imgList != nil {
-		ctx.History, err = NewHistory(hisFile)
+		ctx.History, err = NewHistory(HIS_FILE)
 		if err != nil {
 			ctx.Errorf("%v", err)
 			return err
 		}
 		for {
-			for _, urlList := range imgList {
+			for _, rawURL := range imgList {
 				if ctx.Cancel() {
 					ctx.Errorf(I18n.Sprintf("User cancelled..."))
-					break;
-				}
-				var srcUrl, dstUrl string
-				srcUrl = srcRepo.Registry + "/" + strings.Join(urlList, "/")
-				if dstRepo.Repository != "" {
-					dstUrl = dstRepo.Registry + "/" + dstRepo.Repository + "/" + urlList[len(urlList)-1]
-				} else {
-					dstUrl = dstRepo.Registry + "/" + strings.Join(urlList, "/")
+					break
 				}
 
-				srcURL, err := NewRepoURL(strings.TrimPrefix(strings.TrimPrefix(srcUrl, "https://"), "http://"))
-				dstURL, err := NewRepoURL(strings.TrimPrefix(strings.TrimPrefix(dstUrl, "https://"), "http://"))
+				src, dst := GenRepoUrl(srcRepo.Registry, dstRepo.Registry, dstRepo.Repository, rawURL)
+				srcURL, _ := NewRepoURL(src)
+				dstURL, _ := NewRepoURL(dst)
 
-				imageSourceSrc, err := NewImageSource(ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), "", srcRepo.User, srcRepo.Password, !strings.HasPrefix(srcUrl, "https"))
+				imageSourceSrc, err := NewImageSource(ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), "", srcRepo.User, srcRepo.Password, !strings.HasPrefix(src, "https"))
 				if err != nil {
 					log.Error(err)
 					return err
@@ -380,7 +329,7 @@ func watch(ctx *TaskContext) error {
 
 				tags, err := imageSourceSrc.GetSourceRepoTags()
 				if err != nil {
-					c.PutAInvalidTask(srcUrl)
+					c.PutAInvalidTask(src)
 					ctx.Error(I18n.Sprintf("Fetch tag list failed for %v with error: %v", srcURL, err))
 					return err
 				}
@@ -392,14 +341,14 @@ func watch(ctx *TaskContext) error {
 						continue
 					}
 
-					newImgSrc, err := NewImageSource(ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), tag, srcRepo.User, srcRepo.Password, !strings.HasPrefix(srcUrl, "https"))
+					newImgSrc, err := NewImageSource(ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), tag, srcRepo.User, srcRepo.Password, !strings.HasPrefix(src, "https"))
 					if err != nil {
 						c.PutAInvalidTask(newSrcUrl)
 						ctx.Error(I18n.Sprintf("Url %s format error: %v, skipped", newSrcUrl, err))
 						continue
 					}
 
-					newImgDst, err := NewImageDestination(ctx.Context, dstURL.GetRegistry(), dstURL.GetRepoWithNamespace(), tag, dstRepo.User, dstRepo.Password, !strings.HasPrefix(dstUrl, "https"))
+					newImgDst, err := NewImageDestination(ctx.Context, dstURL.GetRegistry(), dstURL.GetRepoWithNamespace(), tag, dstRepo.User, dstRepo.Password, !strings.HasPrefix(dst, "https"))
 					if err != nil {
 						c.PutAInvalidTask(newSrcUrl)
 						ctx.Error(I18n.Sprintf("Url %s format error: %v, skipped", newDstUrl, err))
@@ -427,7 +376,7 @@ func watch(ctx *TaskContext) error {
 			case <-ctx.Context.Done():
 				ctx.Errorf(I18n.Sprintf("User cancelled..."))
 				return nil
-			case <-time.After(time.Duration(interval) * time.Second):
+			case <-time.After(time.Duration(INTERVAL) * time.Second):
 				continue
 			}
 		}
@@ -436,22 +385,22 @@ func watch(ctx *TaskContext) error {
 }
 
 func download(ctx *TaskContext) error {
-	if conf.MaxConn > len(imgList) {
-		conf.MaxConn = len(imgList)
+	if CONF.MaxConn > len(imgList) {
+		CONF.MaxConn = len(imgList)
 	}
-	c, _ := Newlient(conf.MaxConn, conf.Retries, ctx)
+	c, _ := NewClient(CONF.MaxConn, CONF.Retries, ctx)
 
 	var prefixPathname string
 	var prefixFilename string
-	if len(conf.OutPrefix) > 0 {
-		prefixPathIdx := strings.LastIndex(conf.OutPrefix, string(os.PathSeparator))
+	if len(CONF.OutPrefix) > 0 {
+		prefixPathIdx := strings.LastIndex(CONF.OutPrefix, string(os.PathSeparator))
 		if prefixPathIdx > 0 {
-			prefixPathname = conf.OutPrefix[0 : prefixPathIdx]
-			prefixFilename = conf.OutPrefix[prefixPathIdx + 1 : ]
+			prefixPathname = CONF.OutPrefix[0:prefixPathIdx]
+			prefixFilename = CONF.OutPrefix[prefixPathIdx+1:]
 		}
 	}
 
-	pathname := filepath.Join(home, time.Now().Format("20060102"), prefixPathname)
+	pathname := filepath.Join(HOME, time.Now().Format("20060102"), prefixPathname)
 	_, err := os.Stat(pathname)
 	if os.IsNotExist(err) {
 		os.MkdirAll(pathname, os.ModePerm)
@@ -468,7 +417,7 @@ func download(ctx *TaskContext) error {
 		workName = prefixFilename + "_" + workName
 	}
 
-	ctx.CreateCompressionMetadata(conf.Compressor)
+	ctx.CreateCompressionMetadata(CONF.Compressor)
 
 	if len(*flConfInc) > 0 {
 		b, err := ioutil.ReadFile(*flConfInc)
@@ -485,18 +434,19 @@ func download(ctx *TaskContext) error {
 		}
 	}
 
-	if squashfs {
+	if SQUASHFS {
 		ctx.Temp.SavePath(workName)
-		ctx.CreateSquashfsTar(tempDir, workName, "")
+		ctx.CreateSquashfsTar(TEMP_DIR, workName, "")
 	} else {
-		if conf.SingleFile {
+		if CONF.SingleFile {
 			ctx.CreateSingleWriter(pathname, workName, "tar")
 		} else {
-			ctx.CreateTarWriter(pathname, workName, "tar", conf.MaxConn)
+			ctx.CreateTarWriter(pathname, workName, "tar", CONF.MaxConn)
 		}
 	}
-	for _, urlList := range imgList {
-		c.GenerateOfflineDownTask(srcRepo.Registry+"/"+strings.Join(urlList, "/"), srcRepo.User, srcRepo.Password)
+	for _, rawURL := range imgList {
+		src, _ := GenRepoUrl(srcRepo.Registry, "", "", rawURL)
+		c.GenerateOfflineDownTask(src, srcRepo.User, srcRepo.Password)
 	}
 	startReport(ctx)
 	ctx.UpdateTotalTask(c.TaskLen())
@@ -505,13 +455,14 @@ func download(ctx *TaskContext) error {
 	if ctx.SingleWriter != nil {
 		ctx.SingleWriter.SetQuit()
 		ctx.SingleWriter.Run()
+		ctx.SingleWriter.SaveDockerMeta(ctx.CompMeta)
 	} else {
 		ctx.CloseTarWriter()
 	}
 
 	if ctx.SquashfsTar != nil {
 		ctx.Info(I18n.Sprintf("Mksquashfs Compress Start"))
-		err := MakeSquashfs(ctx.GetLogger(), filepath.Join(tempDir, workName), filepath.Join(pathname, workName+".squashfs"))
+		err := MakeSquashfs(ctx.GetLogger(), filepath.Join(TEMP_DIR, workName), filepath.Join(pathname, workName+".squashfs"))
 		ctx.Info(I18n.Sprintf("Mksquashfs Compress End"))
 		if err != nil {
 			ctx.Error(I18n.Sprintf("Mksquashfs compress failed with %v", err))
@@ -554,26 +505,31 @@ func upload(ctx *TaskContext) error {
 		srcImgUrlList = append(srcImgUrlList, k)
 	}
 	ctx.Info(I18n.Sprintf("The img file contains %v images:\n%s", len(cm.Manifests), strings.Join(srcImgUrlList, "\n")))
-	getInputList(strings.Join(srcImgUrlList, "\n"))
+
+	if len(*flConfLst) > 0 {
+		readImgList(ctx)
+	} else {
+		getInputList(strings.Join(srcImgUrlList, "\n")) // if no input list then take the original
+	}
 
 	if ctx.CompMeta.Compressor == "squashfs" {
 		var filename string
-		for k, _ := range cm.Datafiles {
+		for k := range cm.Datafiles {
 			filename = k
 		}
 		workName := strings.TrimSuffix(filename, ".squashfs")
-		if !TestSquashfs() || strings.Contains(conf.Squashfs, "stream") {
-			err = ctx.CreateSquashfsTar(tempDir, workName, filepath.Join(pathname, filename))
+		if !TestSquashfs() || strings.Contains(CONF.Squashfs, "stream") {
+			err = ctx.CreateSquashfsTar(TEMP_DIR, workName, filepath.Join(pathname, filename))
 			if err != nil {
 				return ctx.Errorf(I18n.Sprintf("Unsquashfs uncompress failed with %v", err))
 			}
 		} else {
-			ctx.CreateSquashfsTar(tempDir, workName, "")
+			ctx.CreateSquashfsTar(TEMP_DIR, workName, "")
 			ctx.Info(I18n.Sprintf("Unsquashfs uncompress Start"))
-			if strings.Contains(conf.Squashfs, "nocmd") {
-				err = UnSquashfs(ctx.GetLogger(), filepath.Join(tempDir, workName), filepath.Join(pathname, filename), true)
+			if strings.Contains(CONF.Squashfs, "nocmd") {
+				err = UnSquashfs(ctx.GetLogger(), filepath.Join(TEMP_DIR, workName), filepath.Join(pathname, filename), true)
 			} else {
-				err = UnSquashfs(ctx.GetLogger(), filepath.Join(tempDir, workName), filepath.Join(pathname, filename), false)
+				err = UnSquashfs(ctx.GetLogger(), filepath.Join(TEMP_DIR, workName), filepath.Join(pathname, filename), false)
 				ctx.Temp.SavePath(workName)
 			}
 			ctx.Info(I18n.Sprintf("Unsquashfs uncompress End"))
@@ -583,14 +539,14 @@ func upload(ctx *TaskContext) error {
 		}
 	}
 
-	c, _ := Newlient(conf.MaxConn, conf.Retries, ctx)
-	for i, urlList := range imgList {
-		if dstRepo.Repository != "" {
-			c.GenerateOfflineUploadTask(srcImgUrlList[i], dstRepo.Registry+"/"+dstRepo.Repository+"/"+urlList[len(urlList)-1], pathname, dstRepo.User, dstRepo.Password)
-		} else if dstRepo.Name == "docker" {
-			c.GenerateOfflineUploadTask(srcImgUrlList[i], "", pathname, dstRepo.User, dstRepo.Password)
+	c, _ := NewClient(CONF.MaxConn, CONF.Retries, ctx)
+	for _, rawURL := range imgList {
+		src, dst := GenRepoUrl("", dstRepo.Registry, dstRepo.Repository, rawURL)
+		if dstRepo.Name == "docker" || dstRepo.Name == "ctr" {
+			ctx.DockerTarget = dstRepo.Name
+			c.GenerateOfflineUploadTask(src, "", pathname, dstRepo.User, dstRepo.Password)
 		} else {
-			c.GenerateOfflineUploadTask(srcImgUrlList[i], dstRepo.Registry+"/"+strings.Join(urlList, "/"), pathname, dstRepo.User, dstRepo.Password)
+			c.GenerateOfflineUploadTask(src, dst, pathname, dstRepo.User, dstRepo.Password)
 		}
 	}
 	ctx.UpdateTotalTask(c.TaskLen())
@@ -624,13 +580,13 @@ func WriteMetaFile(ctx *TaskContext, pathname string, filename string) error {
 
 func BeginAction(ctx *TaskContext) bool {
 	ctx.Info(I18n.Sprintf("==============BEGIN=============="))
-	ctx.Info(I18n.Sprintf("Transmit params: max threads: %v, max retries: %v", conf.MaxConn, conf.Retries))
+	ctx.Info(I18n.Sprintf("Transmit params: max threads: %v, max retries: %v", CONF.MaxConn, CONF.Retries))
 	ctx.UpdateSecStart(time.Now().Unix())
 	return true
 }
 
-func EndAction(ctx *TaskContext) () {
-	if !conf.KeepTemp {
+func EndAction(ctx *TaskContext) {
+	if !CONF.KeepTemp {
 		ctx.Temp.Clean()
 	}
 	ctx.UpdateSecEnd(time.Now().Unix())

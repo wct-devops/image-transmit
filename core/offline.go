@@ -1,37 +1,33 @@
 package core
 
 import (
-	"strings"
-	"time"
-	"github.com/containers/image/v5/types"
-	"encoding/json"
-	"io"
-	"fmt"
-	"github.com/pkg/errors"
-	"path/filepath"
-	"io/ioutil"
 	"bytes"
 	"crypto/sha256"
-	"github.com/opencontainers/go-digest"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"path/filepath"
+	"time"
+
 	log "github.com/cihub/seelog"
-	"archive/tar"
-	"strconv"
-	"os/exec"
-	"sync"
+	"github.com/containers/image/v5/types"
+	"github.com/opencontainers/go-digest"
+	"github.com/pkg/errors"
 )
 
-type OfflineDownTask struct{
+type OfflineDownTask struct {
 	ctx *TaskContext
 	url string
-	is *ImageSource
+	is  *ImageSource
 }
 
 func NewOfflineDownTask(ctx *TaskContext, url string, is *ImageSource) Task {
 	return &OfflineDownTask{
 		ctx: ctx,
 		url: url,
-		is: is,
+		is:  is,
 	}
 }
 
@@ -39,22 +35,21 @@ func (t *OfflineDownTask) Name() string {
 	return t.url
 }
 
-
 func (t *OfflineDownTask) Callback(success bool, content string) {
 }
 
-func (t *OfflineDownTask)StatDown(size int64, duration time.Duration){
+func (t *OfflineDownTask) StatDown(size int64, duration time.Duration) {
 
 }
-func (t *OfflineDownTask)StatUp(size int64, duration time.Duration) {
+func (t *OfflineDownTask) StatUp(size int64, duration time.Duration) {
 
 }
-func (t *OfflineDownTask)Status() string {
+func (t *OfflineDownTask) Status() string {
 	return ""
 }
 
 func (t *OfflineDownTask) Run(tid int) error {
-	srcUrl := fmt.Sprintf(	"%s/%s:%s", t.is.GetRegistry(), t.is.GetRepository(), t.is.GetTag())
+	srcUrl := fmt.Sprintf("%s/%s:%s", t.is.GetRegistry(), t.is.GetRepository(), t.is.GetTag())
 	defer t.ctx.CompMeta.ClearDoing(tid)
 	manifestByte, manifestType, err := t.is.GetManifest()
 	if err != nil {
@@ -76,7 +71,7 @@ func (t *OfflineDownTask) Run(tid int) error {
 		}
 
 		if t.ctx.CompMeta.BlobExists(b.Digest.Hex()) || t.ctx.CompMeta.BlobStart(b.Digest.Hex(), tid) {
-			t.ctx.Debug(I18n.Sprintf("Skip blob: %s", ShortenString(b.Digest.String(),19)))
+			t.ctx.Debug(I18n.Sprintf("Skip blob: %s", ShortenString(b.Digest.String(), 19)))
 			continue
 		}
 
@@ -84,25 +79,18 @@ func (t *OfflineDownTask) Run(tid int) error {
 		if err != nil {
 			return errors.New(I18n.Sprintf("Get blob %s(%v) from %s failed: %v", b.Digest.String(), FormatByteSize(size), srcUrl, err))
 		}
-		t.ctx.Debug(I18n.Sprintf("Get a blob %s(%v) from %s success", ShortenString(b.Digest.String(),19), FormatByteSize(size), srcUrl))
-
-		var blobName string
-		// skip the empty gzip layer or tar-split will failed, and many empty HEXs here, using size more safe
-		if strings.HasSuffix(b.MediaType, "tar.gzip") && b.Size > 64 * 1024 {
-			blobName = b.Digest.Hex() + ".tar.gz"
-		} else {
-			blobName = b.Digest.Hex() + ".raw"
-		}
+		t.ctx.Debug(I18n.Sprintf("Get a blob %s(%v) from %s success", ShortenString(b.Digest.String(), 19), FormatByteSize(size), srcUrl))
+		blobName := b.Digest.Hex() + GetBlobSuffix(b)
 
 		if t.ctx.SquashfsTar != nil {
 			if t.ctx.Cache != nil {
 				matched, filename := t.ctx.Cache.Match(blobName, size)
 				if !matched {
-					r, w := t.ctx.Cache.SaveStream(blobName, blob)
+					r, w, _ := t.ctx.Cache.SaveStream(blobName, blob)
 					err := t.ctx.SquashfsTar.AppendFileStream(blobName, size, r)
 					w.Close()
 					if err != nil {
-						return errors.New(I18n.Sprintf("Save Stream file to cache failed: %v" , err))
+						return errors.New(I18n.Sprintf("Save Stream file to cache failed: %v", err))
 					}
 				} else {
 					blob.Close()
@@ -128,9 +116,9 @@ func (t *OfflineDownTask) Run(tid int) error {
 				matched, filename := t.ctx.Cache.Match(blobName, size)
 				if !matched {
 					var err error
-					filename, err = t.ctx.Cache.SaveFile(blobName, blob)
+					filename, err = t.ctx.Cache.SaveFile(blobName, blob, size)
 					if err != nil {
-						return errors.New(I18n.Sprintf("Save Stream file to cache failed: %v" , err))
+						return errors.New(I18n.Sprintf("Save Stream file to cache failed: %v", err))
 					}
 				} else {
 					t.ctx.Debug(I18n.Sprintf("Reuse cache %s", filename))
@@ -140,7 +128,7 @@ func (t *OfflineDownTask) Run(tid int) error {
 				t.ctx.SingleWriter.PutFile(filename)
 				t.ctx.Debug(I18n.Sprintf("Put file to archive: %s", filename))
 			} else {
-				filename, err := t.ctx.Temp.SaveFile(blobName, blob)
+				filename, err := t.ctx.Temp.SaveFile(blobName, blob, size)
 				if err != nil {
 					return errors.New(I18n.Sprintf("Save Stream file to temp failed: %v", err))
 				}
@@ -153,9 +141,12 @@ func (t *OfflineDownTask) Run(tid int) error {
 			if t.ctx.Cache != nil {
 				matched, filename := t.ctx.Cache.Match(blobName, size)
 				if !matched {
-					r, w := t.ctx.Cache.SaveStream(blobName, blob)
-					tar.AppendFileStream(blobName, size, r)
+					r, w, _ := t.ctx.Cache.SaveStream(blobName, blob)
+					err = tar.AppendFileStream(blobName, size, r)
 					w.Close()
+					if err != nil {
+						return err
+					}
 				} else {
 					blob.Close()
 					r, err := t.ctx.Cache.Reuse(blobName)
@@ -177,14 +168,14 @@ func (t *OfflineDownTask) Run(tid int) error {
 			}
 		}
 		if netBytes > 0 {
-			t.ctx.StatDown(netBytes, time.Now().Sub(begin))
+			t.ctx.StatDown(netBytes, time.Since(begin))
 		}
 		t.ctx.CompMeta.BlobDone(b.Digest.Hex(), t.url)
 	}
 	return nil
 }
 
-type OfflineUploadTask struct{
+type OfflineUploadTask struct {
 	ctx       *TaskContext
 	ids       *ImageDestination
 	url       string
@@ -194,10 +185,10 @@ type OfflineUploadTask struct{
 
 func NewOfflineUploadTask(ctx *TaskContext, ids *ImageDestination, url string, path string) Task {
 	return &OfflineUploadTask{
-		ctx: ctx,
-		ids: ids,
-		url: url,
-		path: path,
+		ctx:       ctx,
+		ids:       ids,
+		url:       url,
+		path:      path,
 		gzRetries: make(map[*types.BlobInfo]*types.BlobInfo),
 	}
 }
@@ -209,18 +200,18 @@ func (t *OfflineUploadTask) Name() string {
 func (t *OfflineUploadTask) Callback(bool, string) {
 }
 
-func (t *OfflineUploadTask)StatDown(size int64, duration time.Duration){
+func (t *OfflineUploadTask) StatDown(size int64, duration time.Duration) {
 
 }
-func (t *OfflineUploadTask)StatUp(size int64, duration time.Duration) {
+func (t *OfflineUploadTask) StatUp(size int64, duration time.Duration) {
 
 }
-func (t *OfflineUploadTask)Status() string {
+func (t *OfflineUploadTask) Status() string {
 	return ""
 }
 
 func (t *OfflineUploadTask) Run(tid int) error {
-	manifestJson, _ := t.ctx.CompMeta.Manifests[t.url]
+	manifestJson := t.ctx.CompMeta.Manifests[t.url]
 	m := Manifest{}
 	manifestByte := []byte(manifestJson)
 	err := json.Unmarshal(manifestByte, &m)
@@ -229,14 +220,12 @@ func (t *OfflineUploadTask) Run(tid int) error {
 	}
 
 	var blobs []types.BlobInfo
-	blobs = append(blobs, m.Config )
-	for _, l := range m.Layers {
-		blobs = append(blobs , l)
-	}
+	blobs = append(blobs, m.Config)
+	blobs = append(blobs, m.Layers...)
 
-	var dockerSave *DockerSave
-	if t.ids == nil {
-		dockerSave = NewDockerSave(t.ctx)
+	var dockerSaver *DockerSaver
+	if t.ctx.DockerTarget != "" {
+		dockerSaver = NewDockerSaver(t.ctx, t.ctx.DockerTarget)
 	}
 
 	var dstUrl string
@@ -272,32 +261,29 @@ func (t *OfflineUploadTask) Run(tid int) error {
 					}
 
 					d, _ := digest.Parse("sha256:" + hex.EncodeToString(layerHash.Sum(nil)))
-					if b.Digest.Hex() != d.Hex() {
-						log.Infof("Update digest from %v to %v", b.Digest.Hex(), d.Hex())
-						log.Infof("Update digest from %v to %v", b.Size, rsw.Size)
-
-						if dockerSave == nil {
-							n := new(types.BlobInfo)
-							tmpBytes, _ := json.Marshal(b)
-							json.Unmarshal(tmpBytes, n)
-							n.Digest = d
-							n.Size = rsw.Size
-							start := bytes.Index(manifestByte, []byte(b.Digest.String()))
-							begIdx := bytes.LastIndex(manifestByte[0:start], []byte{'{'} )
-							endIdx := bytes.Index(manifestByte[start:], []byte{'}'} )
-							oldBytes := manifestByte[begIdx : start + endIdx]
-							newBytes := bytes.ReplaceAll(oldBytes, []byte(b.Digest.String()), []byte(n.Digest.String()))
-							newBytes =  bytes.ReplaceAll(newBytes, []byte(fmt.Sprintf(": %v", b.Size )), []byte(fmt.Sprintf(": %v", n.Size )))
-							manifestByte = bytes.ReplaceAll(manifestByte, oldBytes, newBytes)
-							b = *n
-						}
+					if b.Digest.Hex() != d.Hex() && dockerSaver == nil { // TODO avoid some failure cases, but not know why inconsist happened
+						log.Warnf("Update digest from %v to %v", b.Digest.Hex(), d.Hex())
+						log.Warnf("Update digest from %v to %v", b.Size, rsw.Size)
+						n := new(types.BlobInfo)
+						tmpBytes, _ := json.Marshal(b)
+						json.Unmarshal(tmpBytes, n)
+						n.Digest = d
+						n.Size = rsw.Size
+						start := bytes.Index(manifestByte, []byte(b.Digest.String()))
+						begIdx := bytes.LastIndex(manifestByte[0:start], []byte{'{'})
+						endIdx := bytes.Index(manifestByte[start:], []byte{'}'})
+						oldBytes := manifestByte[begIdx : start+endIdx]
+						newBytes := bytes.ReplaceAll(oldBytes, []byte(b.Digest.String()), []byte(n.Digest.String()))
+						newBytes = bytes.ReplaceAll(newBytes, []byte(fmt.Sprintf(": %v", b.Size)), []byte(fmt.Sprintf(": %v", n.Size)))
+						manifestByte = bytes.ReplaceAll(manifestByte, oldBytes, newBytes)
+						b = *n
 					}
 				} else {
 					r, err := NewImageCompressedTarReader(filepath.Join(t.path, k), t.ctx.CompMeta.Compressor)
-					defer r.Close()
 					if err != nil {
 						return err
 					}
+					defer r.Close()
 					rdr, name, size, eof, err := r.ReadFileStreamByName(b.Digest.Hex())
 					if eof {
 						continue
@@ -316,15 +302,11 @@ func (t *OfflineUploadTask) Run(tid int) error {
 					continue
 				}
 
-				if dockerSave != nil {
+				if dockerSaver != nil {
 					if i == 0 {
-						dockerSave.AppendFileStream(b.Digest.Hex() + ".json" , b.Size, reader)
+						dockerSaver.AppendFileStream(b.Digest.Hex()+".json", b.Size, reader)
 					} else {
-						if strings.HasSuffix(b.MediaType , "tar.gzip") {
-							dockerSave.AppendFileStream(b.Digest.Hex() + strconv.Itoa(i-1) + "/layer.tar.gz", b.Size, reader )
-						} else {
-							dockerSave.AppendFileStream(b.Digest.Hex() + strconv.Itoa(i-1) + "/layer.raw" , b.Size, reader )
-						}
+						dockerSaver.AppendFileStream(b.Digest.Hex()+"/layer"+GetBlobSuffix(b), b.Size, reader)
 					}
 					found = true
 					break
@@ -332,10 +314,10 @@ func (t *OfflineUploadTask) Run(tid int) error {
 					begin := time.Now()
 					err = t.ids.PutABlob(ioutil.NopCloser(reader), b)
 					if err != nil {
-						return fmt.Errorf(I18n.Sprintf("Put blob %s(%v) to %s failed: %v", b.Digest, b.Size, t.ids.GetRegistry(),t.ids.GetRepository(), t.ids.GetTag(), err))
+						return fmt.Errorf(I18n.Sprintf("Put blob %s(%v) to %s failed: %v", b.Digest, b.Size, t.ids.GetRegistry(), t.ids.GetRepository(), t.ids.GetTag(), err))
 					} else {
-						t.ctx.Debug(I18n.Sprintf("Put blob %s(%v) to %s success", ShortenString(b.Digest.String(),19), FormatByteSize(b.Size), dstUrl))
-						t.ctx.StatUp(netBytes, time.Now().Sub(begin))
+						t.ctx.Debug(I18n.Sprintf("Put blob %s(%v) to %s success", ShortenString(b.Digest.String(), 19), FormatByteSize(b.Size), dstUrl))
+						t.ctx.StatUp(netBytes, time.Since(begin))
 						found = true
 						break
 					}
@@ -350,26 +332,27 @@ func (t *OfflineUploadTask) Run(tid int) error {
 		}
 	}
 
-	if t.ids != nil {
+	if dockerSaver == nil {
 		if err := t.ids.PushManifest(manifestByte); err != nil {
 			return fmt.Errorf(I18n.Sprintf("Put manifest to %s error: %v", dstUrl, err))
 		}
 		t.ctx.Info(I18n.Sprintf("Put manifest to %s", dstUrl))
 	} else {
-		dockerSave.AppendMeta(&m, t.url)
-		dockerSave.Close()
+		dockerSaver.AppendMeta(&m, t.url)
+		dockerSaver.Close()
 	}
+
 	return nil
 }
 
 type Manifest struct {
-	Config types.BlobInfo `json:"config"`
+	Config types.BlobInfo   `json:"config"`
 	Layers []types.BlobInfo `json:"layers"`
 }
 
 type ReaderSumWrapper struct {
 	reader io.Reader
-	Size int64
+	Size   int64
 }
 
 func NewReaderSumWrapper(reader io.Reader) *ReaderSumWrapper {
@@ -382,92 +365,4 @@ func (r *ReaderSumWrapper) Read(p []byte) (int, error) {
 	n, err := r.reader.Read(p)
 	r.Size = r.Size + int64(n)
 	return n, err
-}
-
-type DockerSave struct{
-	cmdWriter io.WriteCloser
-	tarWriter *tar.Writer
-	cmd *exec.Cmd
-	ctx *TaskContext
-	wait *sync.Mutex
-}
-
-func NewDockerSave(ctx *TaskContext) *DockerSave {
-	var cmdWriter io.WriteCloser
-	var err error
-	cmd := exec.Command("docker", "load")
-	cmdWriter, err = cmd.StdinPipe()
-	if err != nil {
-		log.Error(err)
-		panic(err)
-	}
-	wait := new(sync.Mutex)
-	go func(){
-		wait.Lock()
-		defer wait.Unlock()
-		cmd.Stdout = NewStdoutWrapper(ctx.log)
-		cmd.Stderr = NewStderrWrapper(ctx.log)
-		err := cmd.Run()
-		if err != nil {
-			log.Error(err)
-		}
-	}()
-	tarWriter := tar.NewWriter(cmdWriter)
-	/*
-	cmdWriter,_ := os.Create("tmp.tar")
-	tarWriter := tar.NewWriter(cmdWriter)
-	*/
-
-	return &DockerSave{
-		cmdWriter: cmdWriter,
-		tarWriter: tarWriter,
-		ctx:       ctx,
-		wait: wait,
-	}
-}
-
-func (d *DockerSave) Close(){
-	d.tarWriter.Close()
-	d.cmdWriter.Close()
-	d.wait.Lock()
-	defer d.wait.Unlock()
-}
-
-func (d *DockerSave) AppendMeta(m *Manifest, url string) {
-	imgUrl := strings.TrimPrefix(strings.TrimPrefix(url, "https://"), "http://")
-	var manifests  [](map[string]interface{})
-	manifest_json := make(map[string]interface{})
-	manifest_json["Config"] = m.Config.Digest.Hex() + ".json"
-	manifest_json["RepoTags"] = []string{imgUrl}
-	layers := []string{}
-	for i,v := range m.Layers {
-		if strings.HasSuffix(v.MediaType , "tar.gzip") {
-			layers = append(layers, v.Digest.Hex() + strconv.Itoa(i) + "/layer.tar.gz" )
-		} else {
-			layers = append(layers, v.Digest.Hex() + strconv.Itoa(i) + "/layer.raw" )
-		}
-	}
-	manifest_json["Layers"] =layers
-	manifests = append( manifests, manifest_json)
-	mb, _ := json.Marshal(manifests)
-	d.AppendFileStream("manifest.json", int64(len(mb)), ioutil.NopCloser(bytes.NewReader(mb)))
-
-	imageName := imgUrl[: strings.LastIndex(imgUrl, ":")]
-	imageTag := imgUrl[strings.LastIndex(imgUrl, ":") : ]
-	repositories := make(map[string]map[string]string)
-	repositories[imageName] = map[string]string{ imageTag : m.Layers[len(m.Layers)-1].Digest.Hex() + strconv.Itoa(len(m.Layers)-1)}
-	rb, _ := json.Marshal(repositories)
-	d.AppendFileStream("repositories", int64(len(rb)), ioutil.NopCloser(bytes.NewReader(rb)))
-
-}
-
-func (d *DockerSave) AppendFileStream(filename string, size int64,  reader io.Reader) error {
-	hdr := &tar.Header{
-		Name: filename,
-		Size: size,
-		Mode: tar.TypeReg,
-	}
-	d.tarWriter.WriteHeader(hdr)
-	io.Copy(d.tarWriter, reader)
-	return nil
 }

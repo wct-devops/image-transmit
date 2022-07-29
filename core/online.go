@@ -1,12 +1,13 @@
 package core
 
 import (
+	"fmt"
+	"io"
+	"strings"
+	"time"
+
 	"github.com/containers/image/v5/manifest"
 	"github.com/containers/image/v5/pkg/blobinfocache/none"
-	"time"
-	"strings"
-	"io"
-	"fmt"
 	"github.com/pkg/errors"
 )
 
@@ -25,18 +26,18 @@ type OnlineTask struct {
 	callbackFunc func(bool, string)
 	byteDown     int64
 	byteUp       int64
-	timeDown	 time.Duration
-	timeUp	     time.Duration
+	timeDown     time.Duration
+	timeUp       time.Duration
 }
 
 // NewTask creates a task
-func NewOnlineTask(source *ImageSource, destination *ImageDestination, ctx *TaskContext) Task{
+func NewOnlineTask(source *ImageSource, destination *ImageDestination, ctx *TaskContext) Task {
 	return NewOnlineTaskCallback(source, destination, ctx, nil)
 }
 
-func NewOnlineTaskCallback(source *ImageSource, destination *ImageDestination, ctx *TaskContext, callback func(bool, string)) Task{
-	srcUrl := fmt.Sprintf(	"%s/%s:%s", source.GetRegistry(), source.GetRepository(), source.GetTag())
-	dstUrl := fmt.Sprintf(	"%s/%s:%s", destination.GetRegistry(), destination.GetRepository(), destination.GetTag())
+func NewOnlineTaskCallback(source *ImageSource, destination *ImageDestination, ctx *TaskContext, callback func(bool, string)) Task {
+	srcUrl := fmt.Sprintf("%s/%s:%s", source.GetRegistry(), source.GetRepository(), source.GetTag())
+	dstUrl := fmt.Sprintf("%s/%s:%s", destination.GetRegistry(), destination.GetRepository(), destination.GetTag())
 	return &OnlineTask{
 		source:       source,
 		destination:  destination,
@@ -46,8 +47,8 @@ func NewOnlineTaskCallback(source *ImageSource, destination *ImageDestination, c
 		callbackFunc: callback,
 		byteDown:     0,
 		byteUp:       0,
-		timeDown: 1,
-		timeUp: 1,
+		timeDown:     1,
+		timeUp:       1,
 	}
 }
 
@@ -101,7 +102,7 @@ func (t *OnlineTask) Run(idx int) error {
 			if err != nil {
 				return errors.New(I18n.Sprintf("Get blob %s(%v) from %s failed: %v", b.Digest.String(), FormatByteSize(b.Size), t.srcUrl, err))
 			}
-			t.ctx.Debug(I18n.Sprintf("Get a blob %s(%v) from %s success", ShortenString(b.Digest.String(),19), FormatByteSize(b.Size), t.srcUrl))
+			t.ctx.Debug(I18n.Sprintf("Get a blob %s(%v) from %s success", ShortenString(b.Digest.String(), 19), FormatByteSize(b.Size), t.srcUrl))
 
 			if t.ctx.Cancel() {
 				return errors.New(I18n.Sprintf("User cancelled..."))
@@ -114,7 +115,7 @@ func (t *OnlineTask) Run(idx int) error {
 			var wCloser io.WriteCloser
 			var rCloser io.ReadCloser
 			// skip the empty gzip layer or tar-split will failed, and many empty HEXs here, using size more safe
-			if strings.HasSuffix(b.MediaType, "tar.gzip") && b.Size > 64 * 1024 {
+			if strings.HasSuffix(b.MediaType, "tar.gzip") && b.Size > 64*1024 {
 				blobName = b.Digest.Hex() + ".tar.gz"
 			} else {
 				blobName = b.Digest.Hex() + ".raw"
@@ -130,7 +131,7 @@ func (t *OnlineTask) Run(idx int) error {
 					}
 				} else {
 					downSize = size
-					upReader, wCloser = t.ctx.Cache.SaveStream(blobName, blob)
+					upReader, wCloser, _ = t.ctx.Cache.SaveStream(blobName, blob)
 				}
 				rCloser = blob
 			} else {
@@ -140,11 +141,11 @@ func (t *OnlineTask) Run(idx int) error {
 
 			// push a blob to destination
 			if err := t.destination.PutABlob(upReader, b); err != nil {
-				return errors.New(I18n.Sprintf("Put blob %s(%v) to %s failed: %v", b.Digest, b.Size, t.destination.GetRegistry(),t.destination.GetRepository(), t.destination.GetTag(), err))
+				return errors.New(I18n.Sprintf("Put blob %s(%v) to %s failed: %v", b.Digest, b.Size, t.destination.GetRegistry(), t.destination.GetRepository(), t.destination.GetTag(), err))
 			}
-			t.ctx.Info(I18n.Sprintf("Put blob %s(%v) to %s success", ShortenString(b.Digest.String(),19), FormatByteSize(b.Size), t.dstUrl))
+			t.ctx.Info(I18n.Sprintf("Put blob %s(%v) to %s success", ShortenString(b.Digest.String(), 19), FormatByteSize(b.Size), t.dstUrl))
 
-			duration := time.Now().Sub(begin)
+			duration := time.Since(begin)
 
 			if downSize > 0 {
 				t.ctx.StatDown(downSize, duration)
@@ -165,7 +166,7 @@ func (t *OnlineTask) Run(idx int) error {
 			}
 		} else {
 			// print the log of ignored blob
-			t.ctx.Info(I18n.Sprintf("Blob %s(%v) has been pushed to %s, will not be pulled",ShortenString(b.Digest.String(),19), FormatByteSize(b.Size), t.dstUrl))
+			t.ctx.Info(I18n.Sprintf("Blob %s(%v) has been pushed to %s, will not be pulled", ShortenString(b.Digest.String(), 19), FormatByteSize(b.Size), t.dstUrl))
 		}
 	}
 
@@ -207,7 +208,7 @@ func (t *OnlineTask) Run(idx int) error {
 
 	t.ctx.Info(I18n.Sprintf("Transmit successfully from %s to %s", t.srcUrl, t.dstUrl))
 	if t.ctx.History != nil {
-		t.ctx.History.Add( t.srcUrl )
+		t.ctx.History.Add(t.srcUrl)
 	}
 	return nil
 }

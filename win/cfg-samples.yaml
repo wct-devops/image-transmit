@@ -12,6 +12,7 @@ target:  # 目标仓库信息配置,可以支持多个
 #maxconn: 5 # 可选配置，最大并发数，默认5
 #retries: 2 # 可选配置，最大重试次数，默认2
 #singlefile: false #可选配置，是否生成单一文件，默认关
+#dockerfile: false #可选配置，导出文件是否为Docker兼容的格式
 #compressor: # 可选配置。如果不配置，windows下默认为tar模式, linux下如果系统存在mksquashfs/tar,且运行时为特权账号(root或者sudo)，则采用squashfs模式，否则为tar模式，详细解释参考说明
 #lang: en_US # 可选配置，指定语言版本,支持中英文两种语言，默认取操作系统语言
 #cache:   # 可选配置，是否开启本地缓存，默认关，详细参考说明

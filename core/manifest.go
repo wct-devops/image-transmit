@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+
 	"github.com/containers/image/v5/manifest"
 )
 

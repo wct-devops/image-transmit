@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+
 	"github.com/containers/image/v5/docker"
 	"github.com/containers/image/v5/types"
 )

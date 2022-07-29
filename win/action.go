@@ -1,18 +1,19 @@
 package main
 
 import (
-	. "github.com/wct-devops/image-transmit/core"
-	"github.com/lxn/walk"
-	"gopkg.in/yaml.v2"
-	"strings"
-	"strconv"
 	"fmt"
-	"time"
+	"io/ioutil"
 	"os"
 	"path/filepath"
-	"io/ioutil"
+	"strconv"
+	"strings"
+	"time"
+
 	log "github.com/cihub/seelog"
+	"github.com/lxn/walk"
 	"github.com/mcuadros/go-version"
+	. "github.com/wct-devops/image-transmit/core"
+	"gopkg.in/yaml.v2"
 )
 
 type MyMainWindow struct {
@@ -45,6 +46,8 @@ type MyMainWindow struct {
 	srcRepo          *Repo
 	dstRepo          *Repo
 	ctx              *TaskContext
+	cmUpload         *CompressionMetadata
+	pathUpload       string
 	maxConn          int
 	retries          int
 	compressor       string
@@ -55,13 +58,13 @@ type MyMainWindow struct {
 func (mw *MyMainWindow) BeginAction() bool {
 	txtLen := len(mw.teOutput.Text())
 	if txtLen > 1000000 {
-		mw.teOutput.SetText(string(mw.teOutput.Text()[ txtLen-1000000:]))
+		mw.teOutput.SetText(string(mw.teOutput.Text()[txtLen-1000000:]))
 	}
 	maxConn, err := strconv.Atoi(mw.leMaxConn.Text())
 	if err != nil {
 		walk.MsgBox(mw.mainWindow,
 			I18n.Sprintf("Verify input failed"),
-			fmt.Sprintf(I18n.Sprintf("Failed to set 'MaxThreads' with error: %v", err)),
+			fmt.Sprint(I18n.Sprintf("Failed to set 'MaxThreads' with error: %v", err)),
 			walk.MsgBoxIconStop)
 		return true
 	}
@@ -71,7 +74,7 @@ func (mw *MyMainWindow) BeginAction() bool {
 	if err != nil {
 		walk.MsgBox(mw.mainWindow,
 			I18n.Sprintf("Verify input failed"),
-			fmt.Sprintf(I18n.Sprintf("Failed to set 'Retries' with error: %v", err)),
+			fmt.Sprint(I18n.Sprintf("Failed to set 'Retries' with error: %v", err)),
 			walk.MsgBoxIconStop)
 		return true
 	}
@@ -84,13 +87,13 @@ func (mw *MyMainWindow) BeginAction() bool {
 	return true
 }
 
-func (mw *MyMainWindow) EndAction() () {
-	if !conf.KeepTemp {
+func (mw *MyMainWindow) EndAction() {
+	if !CONF.KeepTemp {
 		mw.ctx.Temp.Clean()
 	}
 	mw.ctx.UpdateSecEnd(time.Now().Unix())
 	if mw.ctx.Notify != nil {
-		mw.ctx.Notify.Send( I18n.Sprintf("### Transmit Task End \n- Stat: %v", mw.ctx.GetStatus() ))
+		mw.ctx.Notify.Send(I18n.Sprintf("### Transmit Task End \n- Stat: %v", mw.ctx.GetStatus()))
 	}
 	mw.ctx.Info(I18n.Sprintf("===============END==============="))
 	log.Flush()
@@ -118,13 +121,13 @@ func (mw *MyMainWindow) StatDatafiles(pathname string, filename string) error {
 	return nil
 }
 
-func (mw *MyMainWindow) getInputList() [][] string {
-	var list [][] string
+func (mw *MyMainWindow) getInputList() []string {
+	var list []string
 
 	input := mw.teInput.Text()
 	input = strings.ReplaceAll(input, "\t", "")
 
-	if invalidChar(strings.ReplaceAll(strings.ReplaceAll(input, "\r", ""), "\n", "")) {
+	if CheckInvalidChar(strings.ReplaceAll(strings.ReplaceAll(input, "\r", ""), "\n", "")) {
 		walk.MsgBox(mw.mainWindow,
 			I18n.Sprintf("Input Error"),
 			I18n.Sprintf("Invalid char(s) found from the input, please check the text in the left edit box"),
@@ -137,14 +140,7 @@ func (mw *MyMainWindow) getInputList() [][] string {
 		if imgName == "" {
 			continue
 		}
-		imgName = strings.TrimPrefix(
-			strings.TrimPrefix(
-				strings.TrimSpace(imgName), "http://"), "https://")
-		urlList := strings.Split(imgName, "/")
-		if strings.ContainsAny(urlList[0], ".") {
-			urlList = urlList[1:]
-		}
-		list = append(list, urlList)
+		list = append(list, imgName)
 	}
 	if len(list) < 1 {
 		walk.MsgBox(mw.mainWindow,
@@ -156,24 +152,14 @@ func (mw *MyMainWindow) getInputList() [][] string {
 	return list
 }
 
-func invalidChar(text string) bool {
-	f := func(r rune) bool {
-		return r < ' ' || r > '~'
-	}
-	if strings.IndexFunc(text, f) != -1 {
-		return true
-	}
-	return false
-}
-
 func (mw *MyMainWindow) Transmit() {
 	imgList := mw.getInputList()
 	if imgList == nil || len(imgList) < 1 || !mw.BeginAction() {
 		return
 	}
 
-	c, err := Newlient(mw.maxConn, mw.retries, mw.ctx)
-	if (err != nil) {
+	c, err := NewClient(mw.maxConn, mw.retries, mw.ctx)
+	if err != nil {
 		walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"), fmt.Sprintf("%s", err), walk.MsgBoxIconStop)
 		return
 	}
@@ -182,18 +168,16 @@ func (mw *MyMainWindow) Transmit() {
 		go func() {
 			mw.btnSync.SetEnabled(false)
 			defer mw.btnSync.SetEnabled(true)
-			for _, urlList := range imgList {
+			for _, rawURL := range imgList {
 				if mw.ctx.Cancel() {
 					mw.ctx.Errorf(I18n.Sprintf("User cancelled..."))
 					return
 				}
-				if mw.dstRepo.Repository != "" {
-					c.GenerateOnlineTask(mw.srcRepo.Registry+"/"+strings.Join(urlList, "/"), mw.srcRepo.User, mw.srcRepo.Password,
-						mw.dstRepo.Registry+"/"+mw.dstRepo.Repository+"/"+urlList[len(urlList)-1], mw.dstRepo.User, mw.dstRepo.Password)
-				} else {
-					c.GenerateOnlineTask(mw.srcRepo.Registry+"/"+strings.Join(urlList, "/"), mw.srcRepo.User, mw.srcRepo.Password,
-						mw.dstRepo.Registry+"/"+strings.Join(urlList, "/"), mw.dstRepo.User, mw.dstRepo.Password)
-				}
+
+				src, dst := GenRepoUrl(mw.srcRepo.Registry, mw.dstRepo.Registry, mw.dstRepo.Repository, rawURL)
+				c.GenerateOnlineTask(src, mw.srcRepo.User, mw.srcRepo.Password,
+					dst, mw.dstRepo.User, mw.dstRepo.Password)
+
 			}
 			mw.ctx.UpdateTotalTask(c.TaskLen())
 			c.Run()
@@ -208,8 +192,8 @@ func (mw *MyMainWindow) Watch() {
 		return
 	}
 
-	c, err := Newlient(mw.maxConn, mw.retries, mw.ctx)
-	if (err != nil) {
+	c, err := NewClient(mw.maxConn, mw.retries, mw.ctx)
+	if err != nil {
 		walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"), fmt.Sprintf("%s", err), walk.MsgBoxIconStop)
 		return
 	}
@@ -223,31 +207,25 @@ func (mw *MyMainWindow) Watch() {
 				mw.ctx.History = nil
 			}()
 
-			mw.ctx.History, err = NewHistory(hisFile)
+			mw.ctx.History, err = NewHistory(HIS_FILE)
 			if err != nil {
 				log.Error(err)
 				panic(err)
 			}
 
 			for {
-				for _, urlList := range imgList {
+				for _, rawURL := range imgList {
 					if mw.ctx.Cancel() {
 						mw.ctx.Errorf(I18n.Sprintf("User cancelled..."))
-						break;
+						break
 					}
 
-					var srcUrl, dstUrl string
-					srcUrl = mw.srcRepo.Registry + "/" + strings.Join(urlList, "/")
-					if mw.dstRepo.Repository != "" {
-						dstUrl = mw.dstRepo.Registry + "/" + mw.dstRepo.Repository + "/" + urlList[len(urlList)-1]
-					} else {
-						dstUrl = mw.dstRepo.Registry + "/" + strings.Join(urlList, "/")
-					}
+					src, dst := GenRepoUrl(mw.srcRepo.Registry, mw.dstRepo.Registry, mw.dstRepo.Repository, rawURL)
 
-					srcURL, err := NewRepoURL(strings.TrimPrefix(strings.TrimPrefix(srcUrl, "https://"), "http://"))
-					dstURL, err := NewRepoURL(strings.TrimPrefix(strings.TrimPrefix(dstUrl, "https://"), "http://"))
+					srcURL, _ := NewRepoURL(src)
+					dstURL, _ := NewRepoURL(dst)
 
-					imageSourceSrc, err := NewImageSource(mw.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), "", mw.srcRepo.User, mw.srcRepo.Password, !strings.HasPrefix(srcUrl, "https"))
+					imageSourceSrc, err := NewImageSource(mw.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), "", mw.srcRepo.User, mw.srcRepo.Password, !strings.HasPrefix(src, "https"))
 					if err != nil {
 						log.Error(err)
 						return
@@ -255,7 +233,7 @@ func (mw *MyMainWindow) Watch() {
 
 					tags, err := imageSourceSrc.GetSourceRepoTags()
 					if err != nil {
-						c.PutAInvalidTask(srcUrl)
+						c.PutAInvalidTask(src)
 						mw.ctx.Error(I18n.Sprintf("Fetch tag list failed for %v with error: %v", srcURL, err))
 						continue
 					}
@@ -267,14 +245,14 @@ func (mw *MyMainWindow) Watch() {
 							continue
 						}
 
-						newImgSrc, err := NewImageSource(mw.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), tag, mw.srcRepo.User, mw.srcRepo.Password, !strings.HasPrefix(srcUrl, "https"))
+						newImgSrc, err := NewImageSource(mw.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), tag, mw.srcRepo.User, mw.srcRepo.Password, !strings.HasPrefix(newSrcUrl, "https"))
 						if err != nil {
 							c.PutAInvalidTask(newSrcUrl)
 							mw.ctx.Error(I18n.Sprintf("Url %s format error: %v, skipped", newSrcUrl, err))
 							continue
 						}
 
-						newImgDst, err := NewImageDestination(mw.ctx.Context, dstURL.GetRegistry(), dstURL.GetRepoWithNamespace(), tag, mw.dstRepo.User, mw.dstRepo.Password, !strings.HasPrefix(dstUrl, "https"))
+						newImgDst, err := NewImageDestination(mw.ctx.Context, dstURL.GetRegistry(), dstURL.GetRepoWithNamespace(), tag, mw.dstRepo.User, mw.dstRepo.Password, !strings.HasPrefix(newDstUrl, "https"))
 						if err != nil {
 							c.PutAInvalidTask(newSrcUrl)
 							mw.ctx.Error(I18n.Sprintf("Url %s format error: %v, skipped", newDstUrl, err))
@@ -301,7 +279,7 @@ func (mw *MyMainWindow) Watch() {
 				case <-mw.ctx.Context.Done():
 					mw.ctx.Errorf(I18n.Sprintf("User cancelled..."))
 					return
-				case <-time.After(time.Duration(interval) * time.Second):
+				case <-time.After(time.Duration(INTERVAL) * time.Second):
 					c.ClearInvalidTask()
 					continue
 				}
@@ -319,23 +297,23 @@ func (mw *MyMainWindow) Download() {
 	if mw.maxConn > len(imgList) {
 		mw.maxConn = len(imgList)
 	}
-	c, err := Newlient(mw.maxConn, mw.retries, mw.ctx)
-	if (err != nil) {
+	c, err := NewClient(mw.maxConn, mw.retries, mw.ctx)
+	if err != nil {
 		walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"), fmt.Sprintf("%s", err), walk.MsgBoxIconStop)
 		return
 	}
 
 	var prefixPathname string
 	var prefixFilename string
-	if len(conf.OutPrefix) > 0 {
-		prefixPathIdx := strings.LastIndex(conf.OutPrefix, string(os.PathSeparator))
+	if len(CONF.OutPrefix) > 0 {
+		prefixPathIdx := strings.LastIndex(CONF.OutPrefix, string(os.PathSeparator))
 		if prefixPathIdx > 0 {
-			prefixPathname = conf.OutPrefix[0 : prefixPathIdx]
-			prefixFilename = conf.OutPrefix[prefixPathIdx + 1 : ]
+			prefixPathname = CONF.OutPrefix[0:prefixPathIdx]
+			prefixFilename = CONF.OutPrefix[prefixPathIdx+1:]
 		}
 	}
 
-	pathname := filepath.Join(home, time.Now().Format("20060102"), prefixPathname)
+	pathname := filepath.Join(HOME, time.Now().Format("20060102"), prefixPathname)
 	_, err = os.Stat(pathname)
 	if os.IsNotExist(err) {
 		os.MkdirAll(pathname, os.ModePerm)
@@ -378,7 +356,7 @@ func (mw *MyMainWindow) Download() {
 		err = yaml.Unmarshal(b, cm)
 		if err != nil {
 			walk.MsgBox(mw.mainWindow, I18n.Sprintf("Meta file error"),
-				fmt.Sprintf(I18n.Sprintf("Parse file failed(version incompatible or file corrupt?): %v", err)), walk.MsgBoxIconStop)
+				fmt.Sprint(I18n.Sprintf("Parse file failed(version incompatible or file corrupt?): %v", err)), walk.MsgBoxIconStop)
 			return
 		}
 		for k := range cm.Blobs {
@@ -386,9 +364,9 @@ func (mw *MyMainWindow) Download() {
 		}
 	}
 
-	if squashfs {
+	if SQUASHFS {
 		mw.ctx.Temp.SavePath(workName)
-		mw.ctx.CreateSquashfsTar(tempDir, workName, "")
+		mw.ctx.CreateSquashfsTar(TEMP_DIR, workName, "")
 	} else {
 		if mw.singleFile {
 			mw.ctx.CreateSingleWriter(pathname, workName, mw.compressor)
@@ -399,26 +377,27 @@ func (mw *MyMainWindow) Download() {
 
 	go func() {
 		mw.btnDownload.SetEnabled(false)
-		for _, urlList := range imgList {
+		for _, rawURL := range imgList {
 			if mw.ctx.Cancel() {
 				mw.ctx.Errorf(I18n.Sprintf("User cancelled..."))
 				return
 			}
-			c.GenerateOfflineDownTask(mw.srcRepo.Registry+"/"+strings.Join(urlList, "/"), mw.srcRepo.User, mw.srcRepo.Password)
+			src, _ := GenRepoUrl(mw.srcRepo.Registry, mw.dstRepo.Registry, mw.dstRepo.Repository, rawURL)
+			c.GenerateOfflineDownTask(src, mw.srcRepo.User, mw.srcRepo.Password)
 		}
 		mw.ctx.UpdateTotalTask(c.TaskLen())
 		c.Run()
 		if mw.ctx.SingleWriter != nil {
 			time.Sleep(1 * time.Second)
 			mw.ctx.SingleWriter.SetQuit()
-		} else {
+		} else if mw.ctx.TarWriter != nil {
 			mw.ctx.CloseTarWriter()
 		}
 
 		if mw.ctx.SingleWriter == nil {
 			if mw.ctx.SquashfsTar != nil {
 				mw.ctx.Info(I18n.Sprintf("Mksquashfs Compress Start"))
-				err := MakeSquashfs(mw.ctx.GetLogger(), filepath.Join(tempDir, workName), filepath.Join(pathname, workName+".squashfs"))
+				err := MakeSquashfs(mw.ctx.GetLogger(), filepath.Join(TEMP_DIR, workName), filepath.Join(pathname, workName+".squashfs"))
 				mw.ctx.Info(I18n.Sprintf("Mksquashfs Compress End"))
 				if err != nil {
 					mw.ctx.Error(I18n.Sprintf("Mksquashfs compress failed with %v", err))
@@ -437,6 +416,7 @@ func (mw *MyMainWindow) Download() {
 	if mw.ctx.SingleWriter != nil {
 		go func() {
 			mw.ctx.SingleWriter.Run()
+			mw.ctx.SingleWriter.SaveDockerMeta(mw.ctx.CompMeta)
 			mw.StatDatafiles(pathname, workName)
 			mw.EndAction()
 			mw.btnDownload.SetEnabled(true)
@@ -445,138 +425,145 @@ func (mw *MyMainWindow) Download() {
 }
 
 func (mw *MyMainWindow) Upload() {
-	dlg := new(walk.FileDialog)
-	dlg.Title = I18n.Sprintf("Please choose an image meta file to upload")
-	dlg.Filter = I18n.Sprintf("Image meta file (*meta.yaml)|*meta.yaml|all (*.*)|*.*")
-	dlg.InitialDirPath = "."
+	var cm *CompressionMetadata
 
-	if ok, err := dlg.ShowOpen(mw.mainWindow); err != nil {
-		//Error : File Open\r\n")
-		mw.ctx.Errorf(I18n.Sprintf("Choose File Failed:%s"), err)
-		return
-	} else if !ok { // Cancel
-		return
-	}
-	mw.ctx.Info(I18n.Sprintf("Selected image meta file to upload: %s", dlg.FilePath))
-	b, err := ioutil.ReadFile(dlg.FilePath)
-	if err != nil {
-		walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"),
-			fmt.Sprintf(I18n.Sprintf("Open file failed: %v", err)), walk.MsgBoxIconStop)
-		return
-	}
-	cm := new(CompressionMetadata)
-	yaml.Unmarshal(b, cm)
-
-	pathname := filepath.Dir(dlg.FilePath)
-
-	for k, v := range cm.Datafiles {
-		f, err := os.Stat(filepath.Join(pathname, k))
-		if err != nil && os.IsNotExist(err) {
-			mw.ctx.Errorf(I18n.Sprintf("Datafile %s missing", filepath.Join(pathname, k)))
-			walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"),
-				I18n.Sprintf("Some data files missing, please check the teLog"), walk.MsgBoxIconStop)
-			return
-		} else if f.Size() != v {
-			mw.ctx.Errorf(I18n.Sprintf("Datafile %s mismatch in size, origin: %v, now: %v", filepath.Join(pathname, k), v, f.Size()))
-			walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"),
-				I18n.Sprintf("Some data files missing, please check the teLog"), walk.MsgBoxIconStop)
+	newUpload := true
+	if mw.cmUpload != nil {
+		text := fmt.Sprint(I18n.Sprintf("Continue upload(Yes) or create a new upload(No) or Cancel ?"))
+		ret := walk.MsgBox(mw.mainWindow, I18n.Sprintf("Continue the upload ?"), text, walk.MsgBoxYesNoCancel)
+		if ret == 6 {
+			newUpload = false
+			cm = mw.cmUpload
+		} else if ret == 2 {
 			return
 		}
 	}
 
-	var srcImgUrlList []string
-	for k := range cm.Manifests {
-		srcImgUrlList = append(srcImgUrlList, k)
-	}
-	mw.teInput.SetText(strings.Join(srcImgUrlList, "\r\n"))
-	text := fmt.Sprintf(I18n.Sprintf("Total %v images found, if need confirm, you can cancel and check the list in the left edit box", len(cm.Manifests)))
+	if newUpload {
+		dlg := new(walk.FileDialog)
+		dlg.Title = I18n.Sprintf("Please choose an image meta file to upload")
+		dlg.Filter = I18n.Sprintf("Image meta file (*meta.yaml)|*meta.yaml|all (*.*)|*.*")
+		dlg.InitialDirPath = "."
 
-	//1-OK 2-Cancel
-	if 1 == walk.MsgBox(mw.mainWindow, I18n.Sprintf("Start transmit now ?"), text, walk.MsgBoxOKCancel) {
-		go func() {
-			mw.BeginAction()
-			mw.ctx.CompMeta = cm
-			imgList := mw.getInputList()
+		if ok, err := dlg.ShowOpen(mw.mainWindow); err != nil {
+			//Error : File Open\r\n")
+			mw.ctx.Errorf(I18n.Sprintf("Choose File Failed:%s"), err)
+			return
+		} else if !ok { // Cancel
+			return
+		}
+		mw.ctx.Info(I18n.Sprintf("Selected image meta file to upload: %s", dlg.FilePath))
+		b, err := ioutil.ReadFile(dlg.FilePath)
+		if err != nil {
+			walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"),
+				fmt.Sprint(I18n.Sprintf("Open file failed: %v", err)), walk.MsgBoxIconStop)
+			return
+		}
+		cm = new(CompressionMetadata)
+		yaml.Unmarshal(b, cm)
 
-			if mw.ctx.CompMeta.Compressor == "squashfs" {
-				var filename string
-				for k, _ := range cm.Datafiles {
-					filename = k
-				}
-				workName := strings.TrimSuffix(filename, ".squashfs")
-				if !TestSquashfs() || strings.Contains(conf.Squashfs, "stream") {
-					err = mw.ctx.CreateSquashfsTar(tempDir, workName, filepath.Join(pathname, filename))
-					if err != nil {
-						walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"),
-							I18n.Sprintf("Unsquashfs uncompress failed with %v", err), walk.MsgBoxIconStop)
-						return
-					}
-				} else {
-					mw.ctx.CreateSquashfsTar(tempDir, workName, "")
-					mw.ctx.Info(I18n.Sprintf("Unsquashfs uncompress Start"))
-					if strings.Contains(conf.Squashfs, "nocmd") {
-						err = UnSquashfs(mw.ctx.GetLogger(), filepath.Join(tempDir, workName), filepath.Join(pathname, filename), true)
-					} else {
-						err = UnSquashfs(mw.ctx.GetLogger(), filepath.Join(tempDir, workName), filepath.Join(pathname, filename), false)
-						mw.ctx.Temp.SavePath(workName)
-					}
-					mw.ctx.Info(I18n.Sprintf("Unsquashfs uncompress End"))
-					if err != nil {
-						mw.ctx.Error(I18n.Sprintf("Unsquashfs uncompress failed with %v", err))
-						walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"),
-							I18n.Sprintf("Unsquashfs uncompress failed with %v", err), walk.MsgBoxIconStop)
-						return
-					}
-				}
-			}
+		pathname := filepath.Dir(dlg.FilePath)
 
-			c, err := Newlient(mw.maxConn, mw.retries, mw.ctx)
-			if (err != nil) {
-				walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"), fmt.Sprintf("%s", err), walk.MsgBoxIconStop)
+		for k, v := range cm.Datafiles {
+			f, err := os.Stat(filepath.Join(pathname, k))
+			if err != nil && os.IsNotExist(err) {
+				mw.ctx.Errorf(I18n.Sprintf("Datafile %s missing", filepath.Join(pathname, k)))
+				walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"),
+					I18n.Sprintf("Some data files missing, please check the teLog"), walk.MsgBoxIconStop)
+				return
+			} else if f.Size() != v {
+				mw.ctx.Errorf(I18n.Sprintf("Datafile %s mismatch in size, origin: %v, now: %v", filepath.Join(pathname, k), v, f.Size()))
+				walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"),
+					I18n.Sprintf("Some data files missing, please check the teLog"), walk.MsgBoxIconStop)
 				return
 			}
+		}
 
-			mw.btnUpload.SetEnabled(false)
-			defer mw.btnUpload.SetEnabled(true)
+		mw.pathUpload = pathname
+		mw.cmUpload = cm
 
-			for i, urlList := range imgList {
-				if mw.ctx.Cancel() {
-					mw.ctx.Error("User cancelled...")
+		var srcImgUrlList []string
+		for k := range cm.Manifests {
+			srcImgUrlList = append(srcImgUrlList, k)
+		}
+		mw.teInput.SetText(strings.Join(srcImgUrlList, "\r\n"))
+
+		text := fmt.Sprint(I18n.Sprintf("Total %v images found, if need update image name or tag, you can cancel and modify the list in the left edit box or we will start upload by default", len(cm.Manifests)))
+		if walk.MsgBox(mw.mainWindow, I18n.Sprintf("Start transmit now ?"), text, walk.MsgBoxOKCancel) == 2 {
+			return
+		}
+	}
+
+	go func() {
+		var err error
+		mw.BeginAction()
+		mw.ctx.CompMeta = cm
+		imgList := mw.getInputList()
+
+		if mw.ctx.CompMeta.Compressor == "squashfs" {
+			var filename string
+			for k := range cm.Datafiles {
+				filename = k
+			}
+			workName := strings.TrimSuffix(filename, ".squashfs")
+			if !TestSquashfs() || strings.Contains(CONF.Squashfs, "stream") {
+				err = mw.ctx.CreateSquashfsTar(TEMP_DIR, workName, filepath.Join(mw.pathUpload, filename))
+				if err != nil {
+					walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"),
+						I18n.Sprintf("Unsquashfs uncompress failed with %v", err), walk.MsgBoxIconStop)
 					return
 				}
-				if mw.dstRepo.Repository != "" {
-					c.GenerateOfflineUploadTask(srcImgUrlList[i], mw.dstRepo.Registry+"/"+mw.dstRepo.Repository+"/"+urlList[len(urlList)-1], pathname, mw.dstRepo.User, mw.dstRepo.Password)
+			} else {
+				mw.ctx.CreateSquashfsTar(TEMP_DIR, workName, "")
+				mw.ctx.Info(I18n.Sprintf("Unsquashfs uncompress Start"))
+				if strings.Contains(CONF.Squashfs, "nocmd") {
+					err = UnSquashfs(mw.ctx.GetLogger(), filepath.Join(TEMP_DIR, workName), filepath.Join(mw.pathUpload, filename), true)
 				} else {
-					c.GenerateOfflineUploadTask(srcImgUrlList[i], mw.dstRepo.Registry+"/"+strings.Join(urlList, "/"), pathname, mw.dstRepo.User, mw.dstRepo.Password)
+					err = UnSquashfs(mw.ctx.GetLogger(), filepath.Join(TEMP_DIR, workName), filepath.Join(mw.pathUpload, filename), false)
+					mw.ctx.Temp.SavePath(workName)
+				}
+				mw.ctx.Info(I18n.Sprintf("Unsquashfs uncompress End"))
+				if err != nil {
+					mw.ctx.Error(I18n.Sprintf("Unsquashfs uncompress failed with %v", err))
+					walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"),
+						I18n.Sprintf("Unsquashfs uncompress failed with %v", err), walk.MsgBoxIconStop)
+					return
 				}
 			}
+		}
 
-			mw.ctx.UpdateTotalTask(c.TaskLen())
-			c.Run()
-			mw.EndAction()
-		}()
-	}
+		c, err := NewClient(mw.maxConn, mw.retries, mw.ctx)
+		if err != nil {
+			walk.MsgBox(mw.mainWindow, I18n.Sprintf("ERROR"), fmt.Sprintf("%s", err), walk.MsgBoxIconStop)
+			return
+		}
+
+		mw.btnUpload.SetEnabled(false)
+		defer mw.btnUpload.SetEnabled(true)
+
+		for _, rawURL := range imgList {
+			if mw.ctx.Cancel() {
+				mw.ctx.Error("User cancelled...")
+				return
+			}
+			src, dst := GenRepoUrl("", mw.dstRepo.Registry, mw.dstRepo.Repository, rawURL)
+			c.GenerateOfflineUploadTask(src, dst, mw.pathUpload, mw.dstRepo.User, mw.dstRepo.Password)
+		}
+
+		mw.ctx.UpdateTotalTask(c.TaskLen())
+		c.Run()
+		mw.EndAction()
+	}()
 }
 
 func (mw *MyMainWindow) Verify() {
 	imgList := mw.getInputList()
 	if imgList != nil {
 		var text = I18n.Sprintf("Image List") + ":\r\n"
-		if mw.srcRepo.Registry != "" {
-			text = text + I18n.Sprintf("Source Repository") + ":\r\n"
-			for _, urlList := range imgList {
-				text = text + mw.srcRepo.Registry + "/" + strings.Join(urlList, "/") + "\r\n"
-			}
-		}
-		if mw.dstRepo.Registry != "" {
-			text = text + I18n.Sprintf("Destination Repository") + ":\r\n"
-			for _, urlList := range imgList {
-				if mw.dstRepo.Repository != "" {
-					text = text + mw.dstRepo.Registry + "/" + mw.dstRepo.Repository + "/" + urlList[len(urlList)-1] + "\r\n"
-				} else {
-					text = text + mw.dstRepo.Registry + "/" + strings.Join(urlList, "/") + "\r\n"
-				}
-			}
+		text = text + I18n.Sprintf("Source Repository") + ", " + I18n.Sprintf("Destination Repository") + "\r\n"
+		for _, rawURL := range imgList {
+			src, dst := GenRepoUrl(mw.srcRepo.Registry, mw.dstRepo.Registry, mw.dstRepo.Repository, rawURL)
+			text = text + src + ", " + dst + "\r\n"
 		}
 		mw.ctx.Info(text)
 	}

@@ -14,5 +14,7 @@
 /cmd/image-transmit-darwin.zip
 /win/image-transmit.exe
 /win/image-transmit-gui.zip
+/win/image-transmit-x86.exe
+/win/image-transmit-x86.zip
 /.idea/
 /test/
