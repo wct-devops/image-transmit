@@ -124,6 +124,9 @@ func (t *TaskContext) CreateSquashfsTar(tempPath string, workPath string, squash
 
 func (t *TaskContext) CreateSingleWriter(pathname string, filename string, compression string) error {
 	var err error
+	if CONF.DockerFile {
+		filename = filename + "_docker"
+	}
 	tarName := filename + "." + compression
 	t.Info(I18n.Sprintf("Create data file: %s", tarName))
 	t.CompMeta.AddDatafile(tarName, 0)
