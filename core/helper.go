@@ -23,20 +23,21 @@ type Repo struct {
 }
 
 type YamlCfg struct {
-	SrcRepos   []Repo           `yaml:"source,omitempty"`
-	DstRepos   []Repo           `yaml:"target,omitempty"`
-	MaxConn    int              `yaml:"maxconn,omitempty"`
-	Retries    int              `yaml:"retries,omitempty"`
-	SingleFile bool             `yaml:"singlefile,omitempty"`
-	DockerFile bool             `yaml:"dockerfile,omitempty"`
-	Compressor string           `yaml:"compressor,omitempty"`
-	Squashfs   string           `yaml:"squashfs,omitempty"`
-	Cache      LocalCache       `yaml:"cache,omitempty"`
-	Lang       string           `yaml:"lang,omitempty"`
-	KeepTemp   bool             `yaml:"keeptemp,omitempty"`
-	OutPrefix  string           `yaml:"outprefix,omitempty"`
-	Interval   int              `yaml:"interval,omitempty"`
-	DingTalk   []DingTalkAccess `yaml:"dingtalk,omitempty"`
+	SrcRepos      []Repo           `yaml:"source,omitempty"`
+	DstRepos      []Repo           `yaml:"target,omitempty"`
+	MaxConn       int              `yaml:"maxconn,omitempty"`
+	Retries       int              `yaml:"retries,omitempty"`
+	SingleFile    bool             `yaml:"singlefile,omitempty"`
+	DockerFile    bool             `yaml:"dockerfile,omitempty"`
+	Compressor    string           `yaml:"compressor,omitempty"`
+	Squashfs      string           `yaml:"squashfs,omitempty"`
+	Cache         LocalCache       `yaml:"cache,omitempty"`
+	Lang          string           `yaml:"lang,omitempty"`
+	KeepTemp      bool             `yaml:"keeptemp,omitempty"`
+	OutPrefix     string           `yaml:"outprefix,omitempty"`
+	Interval      int              `yaml:"interval,omitempty"`
+	DingTalk      []DingTalkAccess `yaml:"dingtalk,omitempty"`
+	SkipTlsVerify bool             `yaml:"skiptlsverify,omitempty"`
 }
 
 func CheckInvalidChar(text string) bool {
@@ -44,6 +45,11 @@ func CheckInvalidChar(text string) bool {
 		return r < ' ' || r > '~'
 	}
 	return strings.IndexFunc(text, f) != -1
+}
+
+// "Http" endpoint or Skip TLS Verify
+func InsecureTarget(endpoint string) bool {
+	return !strings.HasPrefix(endpoint, "https") || CONF.SkipTlsVerify
 }
 
 // we support two cases:

@@ -323,7 +323,7 @@ func (t *OfflineUploadTask) Run(tid int) error {
 					}
 				}
 			}
-			if !found {
+			if dockerSaver == nil && !found {
 				return fmt.Errorf(I18n.Sprintf("Blob not found in datafiles: %s", b.Digest.Hex()))
 			}
 			if t.ctx.Cancel() {

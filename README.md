@@ -71,6 +71,7 @@ target:  # 目标仓库信息配置,可以支持多个
 #dingtalk: # 可选配置,用于发送钉钉通知，支持多个
 #- token :  # 用于配置钉钉令牌
 #  secret:  # 用于配置钉钉密钥
+#skiptlsverify: false # 是否强制跳过TLS校验
 ```
 
 ## 界面截图

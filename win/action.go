@@ -225,7 +225,7 @@ func (mw *MyMainWindow) Watch() {
 					srcURL, _ := NewRepoURL(src)
 					dstURL, _ := NewRepoURL(dst)
 
-					imageSourceSrc, err := NewImageSource(mw.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), "", mw.srcRepo.User, mw.srcRepo.Password, !strings.HasPrefix(src, "https"))
+					imageSourceSrc, err := NewImageSource(mw.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), "", mw.srcRepo.User, mw.srcRepo.Password, InsecureTarget(src))
 					if err != nil {
 						log.Error(err)
 						return
@@ -245,14 +245,14 @@ func (mw *MyMainWindow) Watch() {
 							continue
 						}
 
-						newImgSrc, err := NewImageSource(mw.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), tag, mw.srcRepo.User, mw.srcRepo.Password, !strings.HasPrefix(newSrcUrl, "https"))
+						newImgSrc, err := NewImageSource(mw.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), tag, mw.srcRepo.User, mw.srcRepo.Password, InsecureTarget(newSrcUrl))
 						if err != nil {
 							c.PutAInvalidTask(newSrcUrl)
 							mw.ctx.Error(I18n.Sprintf("Url %s format error: %v, skipped", newSrcUrl, err))
 							continue
 						}
 
-						newImgDst, err := NewImageDestination(mw.ctx.Context, dstURL.GetRegistry(), dstURL.GetRepoWithNamespace(), tag, mw.dstRepo.User, mw.dstRepo.Password, !strings.HasPrefix(newDstUrl, "https"))
+						newImgDst, err := NewImageDestination(mw.ctx.Context, dstURL.GetRegistry(), dstURL.GetRepoWithNamespace(), tag, mw.dstRepo.User, mw.dstRepo.Password, InsecureTarget(newDstUrl))
 						if err != nil {
 							c.PutAInvalidTask(newSrcUrl)
 							mw.ctx.Error(I18n.Sprintf("Url %s format error: %v, skipped", newDstUrl, err))
