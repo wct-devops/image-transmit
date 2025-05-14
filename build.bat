@@ -1,5 +1,6 @@
 cd win
 call build.bat
+call buildx86.bat
 cd ../cmd
 call build-win.bat
 call build-linux.bat
