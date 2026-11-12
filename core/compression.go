@@ -97,11 +97,12 @@ func (c *CompressionMetadata) AddDatafile(name string, num int64) {
 }
 
 type SingleTarWriter struct {
-	m    sync.Mutex
-	t    *ImageCompressedTarWriter
-	d    *DockerSaver
-	todo *list.List
-	quit bool
+	m        sync.Mutex
+	t        *ImageCompressedTarWriter
+	d        *DockerSaver
+	todo     *list.List
+	quit     bool
+	filename string
 }
 
 func NewSingleTarWriter(ctx *TaskContext, filename string, compression string) (*SingleTarWriter, error) {
@@ -118,10 +119,11 @@ func NewSingleTarWriter(ctx *TaskContext, filename string, compression string) (
 	}
 
 	return &SingleTarWriter{
-		todo: list.New(),
-		quit: false,
-		t:    t,
-		d:    d,
+		todo:     list.New(),
+		quit:     false,
+		t:        t,
+		d:        d,
+		filename: filename,
 	}, nil
 }
 
@@ -201,6 +203,19 @@ func (s *SingleTarWriter) SetQuit() {
 	s.quit = true
 }
 
+// Discard drops an incomplete package: close without writing any metadata
+// (a manifest.json referencing missing blobs would break docker load) and
+// remove the data file. Run must have returned before calling it.
+func (s *SingleTarWriter) Discard() {
+	if s.d != nil {
+		s.d.tarWriter.Close()
+		s.d.cmdWriter.Close()
+	}
+	if s.filename != "" {
+		os.Remove(s.filename)
+	}
+}
+
 type ImageCompressedTarWriter struct {
 	file       *os.File
 	tarWriter  *tar.Writer
@@ -239,6 +254,7 @@ func NewImageCompressedTarWriter(filename string, compression string) (*ImageCom
 
 	tarWriter := tar.NewWriter(compressor)
 	return &ImageCompressedTarWriter{
+		file:       file,
 		tarWriter:  tarWriter,
 		compressor: compressor,
 	}, nil
