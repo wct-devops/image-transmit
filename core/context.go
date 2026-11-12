@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -112,6 +113,17 @@ func (t *TaskContext) Reset() {
 func (t *TaskContext) CloseTarWriter() {
 	for _, i := range t.TarWriter {
 		i.Close()
+	}
+	t.TarWriter = nil
+}
+
+// DiscardTarWriters closes and removes all per-thread data files of an
+// incomplete download so they cannot be mistaken for a usable package.
+func (t *TaskContext) DiscardTarWriters() {
+	for _, w := range t.TarWriter {
+		name := w.file.Name()
+		w.Close()
+		os.Remove(name)
 	}
 	t.TarWriter = nil
 }

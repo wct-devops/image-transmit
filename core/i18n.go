@@ -73,6 +73,7 @@ func init() {
 	message.SetString(language.Chinese, "Create meta file: %s", "生成压缩规格文件: %s")
 	message.SetString(language.Chinese, "User cancel it", "用户发起取消")
 	message.SetString(language.Chinese, "User cancelled...", "用户取消操作")
+	message.SetString(language.Chinese, "Download incomplete, discarded package: %s", "下载未完成，已删除不完整的离线包: %s")
 	message.SetString(language.Chinese, "TRANSMIT", "直传")
 	message.SetString(language.Chinese, "Stat data file failed: %v", "统计数据文件信息失败: %v")
 	message.SetString(language.Chinese, "Meta file error", "镜像规格文件错误")

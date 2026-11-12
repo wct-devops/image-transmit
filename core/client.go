@@ -202,6 +202,12 @@ func (c *Client) PutATask(task Task) {
 	}
 }
 
+// FailedTaskLen returns the number of tasks still failing after all retries.
+// Only meaningful after Run has returned.
+func (c *Client) FailedTaskLen() int {
+	return c.failedTaskList.Len()
+}
+
 // GetAFailedTask gets a failed task from failedTaskList
 func (c *Client) GetAFailedTask() (Task, bool) {
 	c.failedTaskListChan <- 1

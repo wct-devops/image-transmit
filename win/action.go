@@ -380,21 +380,32 @@ func (mw *MyMainWindow) Download() {
 		for _, rawURL := range imgList {
 			if mw.ctx.Cancel() {
 				mw.ctx.Errorf(I18n.Sprintf("User cancelled..."))
-				return
+				break
 			}
 			src, _ := GenRepoUrl(mw.srcRepo.Registry, mw.dstRepo.Registry, mw.dstRepo.Repository, rawURL)
 			c.GenerateOfflineDownTask(src, mw.srcRepo.User, mw.srcRepo.Password)
 		}
 		mw.ctx.UpdateTotalTask(c.TaskLen())
 		c.Run()
+		incomplete := c.FailedTaskLen() > 0 || mw.ctx.Cancel()
 		if mw.ctx.SingleWriter != nil {
 			time.Sleep(1 * time.Second)
 			mw.ctx.SingleWriter.SetQuit()
 		} else if mw.ctx.TarWriter != nil {
-			mw.ctx.CloseTarWriter()
+			if incomplete {
+				mw.ctx.DiscardTarWriters()
+			} else {
+				mw.ctx.CloseTarWriter()
+			}
 		}
 
 		if mw.ctx.SingleWriter == nil {
+			if incomplete {
+				mw.ctx.Errorf(I18n.Sprintf("Download incomplete, discarded package: %s", workName))
+				mw.EndAction()
+				mw.btnDownload.SetEnabled(true)
+				return
+			}
 			if mw.ctx.SquashfsTar != nil {
 				mw.ctx.Info(I18n.Sprintf("Mksquashfs Compress Start"))
 				err := MakeSquashfs(mw.ctx.GetLogger(), filepath.Join(TEMP_DIR, workName), filepath.Join(pathname, workName+".squashfs"))
@@ -416,8 +427,13 @@ func (mw *MyMainWindow) Download() {
 	if mw.ctx.SingleWriter != nil {
 		go func() {
 			mw.ctx.SingleWriter.Run()
-			mw.ctx.SingleWriter.SaveDockerMeta(mw.ctx.CompMeta)
-			mw.StatDatafiles(pathname, workName)
+			if c.FailedTaskLen() > 0 || mw.ctx.Cancel() {
+				mw.ctx.SingleWriter.Discard()
+				mw.ctx.Errorf(I18n.Sprintf("Download incomplete, discarded package: %s", workName))
+			} else {
+				mw.ctx.SingleWriter.SaveDockerMeta(mw.ctx.CompMeta)
+				mw.StatDatafiles(pathname, workName)
+			}
 			mw.EndAction()
 			mw.btnDownload.SetEnabled(true)
 		}()
