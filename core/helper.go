@@ -38,6 +38,7 @@ type YamlCfg struct {
 	Interval      int              `yaml:"interval,omitempty"`
 	DingTalk      []DingTalkAccess `yaml:"dingtalk,omitempty"`
 	SkipTlsVerify bool             `yaml:"skiptlsverify,omitempty"`
+	Proxy         string           `yaml:"proxy,omitempty"`
 }
 
 func CheckInvalidChar(text string) bool {

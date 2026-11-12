@@ -71,6 +71,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := InitProxy(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
 	if CONF.MaxConn == 0 {
 		CONF.MaxConn = runtime.NumCPU()
 	}

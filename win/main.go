@@ -90,6 +90,14 @@ func main() {
 		return
 	}
 
+	if err := InitProxy(); err != nil {
+		walk.MsgBox(nil,
+			I18n.Sprintf("Configuration File Error"),
+			fmt.Sprint(err),
+			walk.MsgBoxIconStop)
+		return
+	}
+
 	if CONF.Interval > 0 {
 		INTERVAL = CONF.Interval
 	}
@@ -306,6 +314,10 @@ func main() {
 	}
 
 	mw.ctx.Reset()
+
+	if len(CONF.Proxy) > 0 {
+		mw.ctx.Info(I18n.Sprintf("Using proxy: %s", CONF.Proxy))
+	}
 
 	if CONF.MaxConn > 0 {
 		mw.leMaxConn.SetText(strconv.Itoa(CONF.MaxConn))

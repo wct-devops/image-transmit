@@ -16,5 +16,8 @@
 /win/image-transmit-gui.zip
 /win/image-transmit-x86.exe
 /win/image-transmit-x86.zip
+/win/image-transmit-windows.exe
+/win/cfg.yaml
+/cmd/cfg.yaml
 /.idea/
 /test/

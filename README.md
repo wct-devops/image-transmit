@@ -50,6 +50,7 @@ target:  # 目标仓库信息配置,可以支持多个
 #- token :  # 用于配置钉钉令牌
 #  secret:  # 用于配置钉钉密钥
 #skiptlsverify: false # 是否强制跳过TLS校验
+#proxy: socks5://127.0.0.1:1080 # 可选配置，全局代理，支持socks5/socks5h/http/https，可带认证 socks5://user:pass@host:port，省略协议按socks5处理
 ```
 
 ## 界面截图
