@@ -220,8 +220,11 @@ func main() {
 			os.Exit(1)
 		}
 		BeginAction(ctx)
-		download(ctx)
+		err = download(ctx)
 		EndAction(ctx)
+		if err != nil {
+			os.Exit(1)
+		}
 	} else {
 		fmt.Println(I18n.Sprintf("Invalid args, please refer the help"))
 		flag.Usage()
@@ -457,12 +460,22 @@ func download(ctx *TaskContext) error {
 	ctx.UpdateTotalTask(c.TaskLen())
 	c.Run()
 	end = true
+	incomplete := c.FailedTaskLen() > 0 || ctx.Cancel()
 	if ctx.SingleWriter != nil {
 		ctx.SingleWriter.SetQuit()
 		ctx.SingleWriter.Run()
-		ctx.SingleWriter.SaveDockerMeta(ctx.CompMeta)
+		if incomplete {
+			ctx.SingleWriter.Discard()
+		} else {
+			ctx.SingleWriter.SaveDockerMeta(ctx.CompMeta)
+		}
+	} else if incomplete {
+		ctx.DiscardTarWriters()
 	} else {
 		ctx.CloseTarWriter()
+	}
+	if incomplete {
+		return ctx.Errorf(I18n.Sprintf("Download incomplete, discarded package: %s", workName))
 	}
 
 	if ctx.SquashfsTar != nil {
