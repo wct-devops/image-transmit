@@ -22,6 +22,9 @@ type TaskContext struct {
 	invalidTask  int
 	totalTask    int
 	waitTask     int
+	doneTask     int
+	imgTotal     int64
+	imgDone      int64
 	statChan     chan int
 	Cache        *LocalCache
 	Temp         *LocalTemp
@@ -91,6 +94,83 @@ func (t *TaskContext) UpdateCurrentConn(n int) {
 	t.parallelism = t.parallelism + n
 }
 
+func (t *TaskContext) ImageProgressBegin(total int64) {
+	t.statChan <- 1
+	defer func() { <-t.statChan }()
+	t.imgTotal += total
+}
+
+func (t *TaskContext) ImageProgressAdd(bytes int64) {
+	t.statChan <- 1
+	defer func() { <-t.statChan }()
+	t.imgDone += bytes
+}
+
+func (t *TaskContext) ImageProgressEnd(total, done int64) {
+	t.statChan <- 1
+	defer func() { <-t.statChan }()
+	t.imgTotal -= total
+	t.imgDone -= done
+}
+
+func (t *TaskContext) IncrDoneTask() {
+	t.statChan <- 1
+	defer func() { <-t.statChan }()
+	t.doneTask++
+}
+
+func (t *TaskContext) TaskProgressText() string {
+	t.statChan <- 1
+	defer func() { <-t.statChan }()
+	return I18n.Sprintf("%v/%v  failed:%v", t.doneTask, t.totalTask, t.failedTask)
+}
+
+func (t *TaskContext) SpeedText() string {
+	t.statChan <- 1
+	defer func() { <-t.statChan }()
+	down := FormatByteSize(int64(float64(t.byteDown) / (float64(t.timeDown) / float64(time.Second))))
+	up := FormatByteSize(int64(float64(t.byteUp) / (float64(t.timeUp) / float64(time.Second))))
+	return I18n.Sprintf("v%s/s ^%s/s", down, up)
+}
+
+func (t *TaskContext) TotalText() string {
+	t.statChan <- 1
+	defer func() { <-t.statChan }()
+	return I18n.Sprintf("v%s ^%s", FormatByteSize(t.byteDown), FormatByteSize(t.byteUp))
+}
+
+func (t *TaskContext) ElapsedText() string {
+	var totalSec int64
+	if t.secStart > 0 {
+		if t.secEnd > 0 {
+			totalSec = t.secEnd - t.secStart
+		} else {
+			totalSec = time.Now().Unix() - t.secStart
+		}
+	}
+	h := totalSec / 3600
+	m := (totalSec % 3600) / 60
+	s := totalSec % 60
+	return fmt.Sprintf("%02d:%02d:%02d", h, m, s)
+}
+
+func (t *TaskContext) ImagePercent() (done, total int64) {
+	t.statChan <- 1
+	defer func() { <-t.statChan }()
+	return t.imgDone, t.imgTotal
+}
+
+func (t *TaskContext) BatchProgress() (value, max int) {
+	t.statChan <- 1
+	defer func() { <-t.statChan }()
+	return t.doneTask, t.totalTask
+}
+
+func (t *TaskContext) NotifyText() string {
+	return I18n.Sprintf("Tasks: %v\nSpeed: %v\nTotal: %v\nTime: %v",
+		t.TaskProgressText(), t.SpeedText(), t.TotalText(), t.ElapsedText())
+}
+
 func (t *TaskContext) Reset() {
 	t.byteDown = 0
 	t.byteUp = 0
@@ -103,6 +183,9 @@ func (t *TaskContext) Reset() {
 	t.invalidTask = 0
 	t.totalTask = 0
 	t.waitTask = 0
+	t.doneTask = 0
+	t.imgTotal = 0
+	t.imgDone = 0
 	t.SingleWriter = nil
 	t.TarWriter = nil
 	t.CompMeta = nil

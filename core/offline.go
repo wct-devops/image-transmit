@@ -63,6 +63,13 @@ func (t *OfflineDownTask) Run(tid int) error {
 	}
 	t.ctx.CompMeta.AddImage(t.url, string(manifestByte))
 
+	var imgTotal int64
+	for _, b := range blobInfos {
+		imgTotal += b.Size
+	}
+	t.ctx.ImageProgressBegin(imgTotal)
+	defer t.ctx.ImageProgressEnd(imgTotal, imgTotal)
+
 	for _, b := range blobInfos {
 		begin := time.Now()
 		var netBytes = b.Size
@@ -72,6 +79,7 @@ func (t *OfflineDownTask) Run(tid int) error {
 
 		if t.ctx.CompMeta.BlobExists(b.Digest.Hex()) || t.ctx.CompMeta.BlobStart(b.Digest.Hex(), tid) {
 			t.ctx.Debug(I18n.Sprintf("Skip blob: %s", ShortenString(b.Digest.String(), 19)))
+			t.ctx.ImageProgressAdd(b.Size)
 			continue
 		}
 
@@ -171,6 +179,7 @@ func (t *OfflineDownTask) Run(tid int) error {
 			t.ctx.StatDown(netBytes, time.Since(begin))
 		}
 		t.ctx.CompMeta.BlobDone(b.Digest.Hex(), t.url)
+		t.ctx.ImageProgressAdd(b.Size)
 	}
 	return nil
 }
@@ -222,6 +231,13 @@ func (t *OfflineUploadTask) Run(tid int) error {
 	var blobs []types.BlobInfo
 	blobs = append(blobs, m.Config)
 	blobs = append(blobs, m.Layers...)
+
+	var imgTotal int64
+	for _, b := range blobs {
+		imgTotal += b.Size
+	}
+	t.ctx.ImageProgressBegin(imgTotal)
+	defer t.ctx.ImageProgressEnd(imgTotal, imgTotal)
 
 	var dockerSaver *DockerSaver
 	if t.ctx.DockerTarget != "" {
@@ -330,6 +346,7 @@ func (t *OfflineUploadTask) Run(tid int) error {
 				return fmt.Errorf(I18n.Sprintf("User cancelled..."))
 			}
 		}
+		t.ctx.ImageProgressAdd(b.Size)
 	}
 
 	if dockerSaver == nil {

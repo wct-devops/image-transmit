@@ -13,6 +13,7 @@ require (
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/opencontainers/go-digest v1.0.0
+	github.com/opencontainers/image-spec v1.0.2-0.20190823105129-775207bd45b6
 	github.com/pierrec/lz4 v2.6.1+incompatible
 	github.com/pkg/errors v0.9.1
 	github.com/ulikunitz/xz v0.5.10

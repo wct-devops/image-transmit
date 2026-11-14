@@ -71,6 +71,7 @@ func (c *Client) Run() {
 						task.Callback(false, errLog)
 					} else {
 						task.Callback(true, task.Status())
+						c.ctx.IncrDoneTask()
 					}
 					c.ctx.UpdateFailedTask(c.failedTaskList.Len())
 					if c.ctx.Cancel() {

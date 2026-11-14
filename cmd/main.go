@@ -609,7 +609,7 @@ func EndAction(ctx *TaskContext) {
 	}
 	ctx.UpdateSecEnd(time.Now().Unix())
 	if ctx.Notify != nil {
-		ctx.Notify.Send(I18n.Sprintf("### Transmit Task End \n- Stat: %v", ctx.GetStatus()))
+		ctx.Notify.Send(I18n.Sprintf("### Transmit Task End\n%v", ctx.NotifyText()))
 	}
 	ctx.Info(I18n.Sprintf("===============END==============="))
 	log.Flush()

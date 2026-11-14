@@ -1,18 +1,50 @@
 package core
 
 import (
+	"io/ioutil"
 	"path/filepath"
 	"strings"
+
+	"gopkg.in/yaml.v2"
 )
 
 var (
-	HOME     = "data"
-	TEMP_DIR = filepath.Join(HOME, "temp")
-	HIS_FILE = filepath.Join(HOME, "history.yaml")
-	SQUASHFS = true
-	CONF     *YamlCfg
-	INTERVAL = 60
+	HOME      = "data"
+	TEMP_DIR  = filepath.Join(HOME, "temp")
+	HIS_FILE  = filepath.Join(HOME, "history.yaml")
+	SQUASHFS  = true
+	CONF      *YamlCfg
+	CONF_PATH = "cfg.yaml"
+	INTERVAL  = 60
 )
+
+// SaveConfig writes CONF back to the file it was loaded from.
+func SaveConfig() error {
+	b, err := yaml.Marshal(CONF)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(CONF_PATH, b, 0644)
+}
+
+func RepoID(r Repo) string {
+	if r.Name != "" {
+		return r.Name
+	}
+	return r.Registry
+}
+
+func FindRepoIndex(repos []Repo, id string) int {
+	if id == "" {
+		return 0
+	}
+	for i, r := range repos {
+		if RepoID(r) == id {
+			return i
+		}
+	}
+	return 0
+}
 
 type Repo struct {
 	Name       string `yaml:"name,omitempty"`
@@ -26,10 +58,13 @@ type Repo struct {
 type YamlCfg struct {
 	SrcRepos      []Repo           `yaml:"source,omitempty"`
 	DstRepos      []Repo           `yaml:"target,omitempty"`
+	SrcSelected   string           `yaml:"src_selected,omitempty"`
+	DstSelected   string           `yaml:"dst_selected,omitempty"`
 	MaxConn       int              `yaml:"maxconn,omitempty"`
 	Retries       int              `yaml:"retries,omitempty"`
 	SingleFile    bool             `yaml:"singlefile,omitempty"`
 	DockerFile    bool             `yaml:"dockerfile,omitempty"`
+	Increment     bool             `yaml:"increment,omitempty"`
 	Compressor    string           `yaml:"compressor,omitempty"`
 	Squashfs      string           `yaml:"squashfs,omitempty"`
 	Cache         LocalCache       `yaml:"cache,omitempty"`

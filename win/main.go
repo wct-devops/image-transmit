@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -44,7 +43,8 @@ func main() {
 		if err != nil && os.IsNotExist(err) {
 			log.Error(I18n.Sprintf("Read cfg.yaml failed: %v", err))
 		} else {
-			cfgFile, err = ioutil.ReadFile(filepath.Join(HOME, "cfg.yaml"))
+			CONF_PATH = filepath.Join(HOME, "cfg.yaml")
+			cfgFile, err = ioutil.ReadFile(CONF_PATH)
 			if err != nil {
 				log.Error(I18n.Sprintf("Read cfg.yaml failed: %v", err))
 			}
@@ -82,7 +82,7 @@ func main() {
 		return
 	}
 
-	if len(CONF.SrcRepos) < 1 || len(CONF.DstRepos) < 1 {
+	if len(CONF.SrcRepos) < 1 {
 		walk.MsgBox(nil,
 			I18n.Sprintf("Configuration File Error"),
 			I18n.Sprintf("Configuration File cfg.yaml incorrect, for instruction visit github.com/wct-devops/image-transmit"),
@@ -103,13 +103,11 @@ func main() {
 	}
 
 	mw.compressor = CONF.Compressor
-	mw.lmIncrement = NewIncrementListModel()
 
-	mw.singleFile = CONF.SingleFile
-	mw.lmSingle = NewSingleListModel()
-
-	mw.srcRepo = &CONF.SrcRepos[0]
-	mw.dstRepo = &CONF.DstRepos[0]
+	mw.srcRepo = &CONF.SrcRepos[FindRepoIndex(CONF.SrcRepos, CONF.SrcSelected)]
+	if len(CONF.DstRepos) > 0 {
+		mw.dstRepo = &CONF.DstRepos[FindRepoIndex(CONF.DstRepos, CONF.DstSelected)]
+	}
 
 	mw.lmSrcRepo = NewRepoListModel(CONF.SrcRepos)
 	mw.lmDstRepo = NewRepoListModel(CONF.DstRepos)
@@ -120,15 +118,23 @@ func main() {
 		AssignTo: &mw.mainWindow,
 		Icon:     icon,
 		Title:    I18n.Sprintf("Image Transmit-Ghang'e-WhaleCloud DevOps Team"),
-		MinSize:  Size{Width: 600, Height: 400},
+		MinSize:  Size{Width: 900, Height: 400},
 		Layout:   VBox{},
 		//Icon: ico,
 		Children: []Widget{
 			Composite{
 				Layout:    HBox{MarginsZero: true},
-				MaxSize:   Size{Width: 0, Height: 20},
+				MinSize:   Size{Width: 0, Height: 26},
+				MaxSize:   Size{Width: 0, Height: 26},
 				Alignment: AlignHNearVNear,
 				Children: []Widget{
+					PushButton{
+						Text:      I18n.Sprintf("SETTINGS"),
+						AssignTo:  &mw.btnSettings,
+						MinSize:   Size{Width: 60, Height: 22},
+						MaxSize:   Size{Width: 60, Height: 22},
+						OnClicked: mw.Settings,
+					},
 					Label{Text: I18n.Sprintf("Source:"), AssignTo: &mw.labelSrcRepo},
 					ComboBox{
 						AssignTo:              &mw.cbSrcRepo,
@@ -141,34 +147,14 @@ func main() {
 						Model:                 mw.lmDstRepo,
 						OnCurrentIndexChanged: mw.RepoCurrentIndexChanged,
 					},
-					Label{Text: I18n.Sprintf("  MaxThreads:"), AssignTo: &mw.labelSrcRepo},
-					LineEdit{
-						MaxSize:  Size{Width: 15, Height: 0},
-						MinSize:  Size{Width: 15, Height: 0},
-						AssignTo: &mw.leMaxConn,
-					},
-					Label{Text: I18n.Sprintf("  Retries:"), AssignTo: &mw.labelSrcRepo},
-					LineEdit{
-						MaxSize:  Size{Width: 15, Height: 0},
-						MinSize:  Size{Width: 15, Height: 0},
-						AssignTo: &mw.leRetries,
-					},
+					Label{Text: I18n.Sprintf("  MaxThreads:")},
+					Label{AssignTo: &mw.labelMaxConn},
+					Label{Text: I18n.Sprintf("  Retries:")},
+					Label{AssignTo: &mw.labelRetries},
 					Label{Text: I18n.Sprintf("  ArchiveMode:")},
-					ComboBox{
-						AssignTo:              &mw.cbIncrement,
-						Model:                 mw.lmIncrement,
-						MaxSize:               Size{Width: 50, Height: 0},
-						MinSize:               Size{Width: 50, Height: 0},
-						OnCurrentIndexChanged: mw.IncrementCurrentIndexChanged,
-					},
+					Label{AssignTo: &mw.labelIncrement},
 					Label{Text: I18n.Sprintf("  SingleFile:")},
-					ComboBox{
-						MaxSize:               Size{Width: 40, Height: 0},
-						MinSize:               Size{Width: 40, Height: 0},
-						AssignTo:              &mw.cbSingle,
-						Model:                 mw.lmSingle,
-						OnCurrentIndexChanged: mw.SingleCurrentIndexChanged,
-					},
+					Label{AssignTo: &mw.labelSingle},
 					Label{Text: I18n.Sprintf("  LocalCache:")},
 					Label{AssignTo: &mw.labelCache},
 					HSpacer{},
@@ -228,16 +214,26 @@ func main() {
 						MaxSize:   Size{Width: 60, Height: 22},
 						OnClicked: mw.Verify,
 					},
-					Composite{
-						Layout:    HBox{},
-						MaxSize:   Size{Width: 0, Height: 22},
-						MinSize:   Size{Width: 0, Height: 22},
-						Alignment: AlignHNearVCenter,
-						Children: []Widget{
-							Label{Text: I18n.Sprintf("Status: "), AssignTo: &mw.labelStatusTitle},
-							Label{Text: "-----------", AssignTo: &mw.labelStatus},
-						},
-					},
+					HSpacer{},
+				},
+			},
+			Composite{
+				Layout:    HBox{MarginsZero: true},
+				MinSize:   Size{Width: 0, Height: 24},
+				MaxSize:   Size{Width: 0, Height: 24},
+				Alignment: AlignHNearVNear,
+				Children: []Widget{
+					Label{Text: I18n.Sprintf("Tasks:")},
+					Label{AssignTo: &mw.labelTaskProgress, MinSize: Size{Width: 90}},
+					Label{Text: I18n.Sprintf("  Speed:")},
+					Label{AssignTo: &mw.labelSpeed, MinSize: Size{Width: 130}},
+					Label{Text: I18n.Sprintf("  Total:")},
+					Label{AssignTo: &mw.labelTotal, MinSize: Size{Width: 110}},
+					Label{Text: I18n.Sprintf("  Time:")},
+					Label{AssignTo: &mw.labelTime, MinSize: Size{Width: 60}},
+					Label{Text: I18n.Sprintf("  Image:")},
+					Label{AssignTo: &mw.labelImagePercent, MinSize: Size{Width: 50}},
+					ProgressBar{AssignTo: &mw.pbBatch, MinSize: Size{Width: 120, Height: 16}},
 					HSpacer{},
 				},
 			},
@@ -267,6 +263,8 @@ func main() {
 		},
 	}.Create()
 
+	mw.updateDstButtons()
+
 	titleBrush, err := walk.NewSolidColorBrush(walk.RGB(255, 245, 177))
 	if err != nil {
 		panic(err)
@@ -284,10 +282,7 @@ func main() {
 		mw.labelDstRepo.SetBackground(titleBrush)
 		mw.labelInput.SetBackground(titleBrush)
 		mw.labelOutput.SetBackground(titleBrush)
-		mw.labelStatusTitle.SetBackground(titleBrush)
 	*/
-
-	mw.labelStatus.SetBackground(titleBrush)
 
 	var lc *LocalCache
 	if CONF.Cache.Pathname != "" {
@@ -300,9 +295,6 @@ func main() {
 			keepSize = CONF.Cache.KeepSize
 		}
 		lc = NewLocalCache(CONF.Cache.Pathname, keepDays, keepSize)
-		mw.labelCache.SetText(I18n.Sprintf("ON"))
-	} else {
-		mw.labelCache.SetText(I18n.Sprintf("OFF"))
 	}
 
 	lt := NewLocalTemp(TEMP_DIR)
@@ -321,41 +313,32 @@ func main() {
 		}
 	}
 
-	if CONF.MaxConn > 0 {
-		mw.leMaxConn.SetText(strconv.Itoa(CONF.MaxConn))
-	} else {
-		mw.leMaxConn.SetText(strconv.Itoa(runtime.NumCPU()))
-	}
-
-	if CONF.Retries > 0 {
-		mw.leRetries.SetText(strconv.Itoa(CONF.Retries))
-	} else {
-		mw.leRetries.SetText("2")
-	}
+	mw.refreshSettingsDisplay()
 
 	mw.mainWindow.Show()
 
 	go func() {
-		mw.cbSrcRepo.SetCurrentIndex(0)
-		mw.cbDstRepo.SetCurrentIndex(0)
-		mw.cbIncrement.SetCurrentIndex(0)
-
-		if SQUASHFS {
-			mw.cbSingle.SetCurrentIndex(0)
-			mw.cbSingle.SetEnabled(false)
-		}
-
-		for i, v := range mw.lmSingle.items {
-			b, _ := strconv.ParseBool(v.value)
-
-			if mw.singleFile == b {
-				mw.cbSingle.SetCurrentIndex(i)
-			}
+		mw.cbSrcRepo.SetCurrentIndex(FindRepoIndex(CONF.SrcRepos, CONF.SrcSelected))
+		if len(CONF.DstRepos) > 0 {
+			mw.cbDstRepo.SetCurrentIndex(FindRepoIndex(CONF.DstRepos, CONF.DstSelected))
 		}
 
 		for {
-			mw.labelStatus.SetText(mw.ctx.GetStatus())
-			//mw.teOutput.ScrollToCaret()
+			mw.labelTaskProgress.SetText(mw.ctx.TaskProgressText())
+			mw.labelSpeed.SetText(mw.ctx.SpeedText())
+			mw.labelTotal.SetText(mw.ctx.TotalText())
+			mw.labelTime.SetText(mw.ctx.ElapsedText())
+			done, total := mw.ctx.ImagePercent()
+			if total > 0 {
+				pct := float64(done) / float64(total) * 100
+				mw.labelImagePercent.SetText(fmt.Sprintf("%.1f%%", pct))
+				mw.pbBatch.SetRange(0, 1000)
+				mw.pbBatch.SetValue(int(pct * 10))
+			} else {
+				mw.labelImagePercent.SetText("-")
+				mw.pbBatch.SetRange(0, 1000)
+				mw.pbBatch.SetValue(0)
+			}
 			time.Sleep(1 * time.Second)
 		}
 	}()
@@ -373,18 +356,13 @@ func Base64ToImage(str string) image.Image {
 func (mw *MyMainWindow) RepoCurrentIndexChanged() {
 	if mw.cbSrcRepo.CurrentIndex() > -1 {
 		mw.srcRepo = &mw.lmSrcRepo.items[mw.cbSrcRepo.CurrentIndex()].value
+		CONF.SrcSelected = RepoID(*mw.srcRepo)
 	}
 	if mw.cbDstRepo.CurrentIndex() > -1 {
 		mw.dstRepo = &mw.lmDstRepo.items[mw.cbDstRepo.CurrentIndex()].value
+		CONF.DstSelected = RepoID(*mw.dstRepo)
 	}
-}
-
-func (mw *MyMainWindow) IncrementCurrentIndexChanged() {
-	mw.increment, _ = strconv.ParseBool(mw.lmIncrement.items[mw.cbIncrement.CurrentIndex()].value)
-}
-
-func (mw *MyMainWindow) SingleCurrentIndexChanged() {
-	mw.singleFile, _ = strconv.ParseBool(mw.lmSingle.items[mw.cbSingle.CurrentIndex()].value)
+	SaveConfig()
 }
 
 func (mw *MyMainWindow) updateWindowsNewLine() {
@@ -450,13 +428,6 @@ func NewIncrementListModel() *ListStrModel {
 	m := &ListStrModel{items: make([]ListStrItem, 2)}
 	m.items[0] = ListStrItem{name: I18n.Sprintf("FULL"), value: "false"}
 	m.items[1] = ListStrItem{name: I18n.Sprintf("INCR"), value: "true"}
-	return m
-}
-
-func NewSingleListModel() *ListStrModel {
-	m := &ListStrModel{items: make([]ListStrItem, 2)}
-	m.items[0] = ListStrItem{name: I18n.Sprintf("YES"), value: "true"}
-	m.items[1] = ListStrItem{name: I18n.Sprintf("NO"), value: "false"}
 	return m
 }
 

@@ -21,6 +21,8 @@ type ImageSource struct {
 	registry   string
 	repository string
 	tag        string
+
+	subManifests map[string][]byte
 }
 
 // NewImageSource generates a PullTask by repository, the repository string must include "tag",
@@ -126,6 +128,13 @@ func (i *ImageSource) GetBlobInfos(manifestByte []byte, manifestType string) ([]
 // GetABlob gets a blob from remote image
 func (i *ImageSource) GetABlob(blobInfo types.BlobInfo) (io.ReadCloser, int64, error) {
 	return i.source.GetBlob(i.ctx, types.BlobInfo{Digest: blobInfo.Digest, Size: -1}, NoCache)
+}
+
+func (i *ImageSource) CachedManifest(digest string) []byte {
+	if i.subManifests == nil {
+		return nil
+	}
+	return i.subManifests[digest]
 }
 
 // Close an ImageSource

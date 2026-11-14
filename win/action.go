@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
+	"runtime"
 	"strings"
 	"time"
 
@@ -28,21 +28,24 @@ type MyMainWindow struct {
 	btnDownload      *walk.PushButton
 	btnUpload        *walk.PushButton
 	btnTest          *walk.PushButton
+	btnSettings      *walk.PushButton
 	labelSrcRepo     *walk.Label
 	labelDstRepo     *walk.Label
 	cbSrcRepo        *walk.ComboBox
 	cbDstRepo        *walk.ComboBox
-	cbIncrement      *walk.ComboBox
-	cbSingle         *walk.ComboBox
-	labelStatusTitle *walk.Label
-	labelStatus      *walk.Label
+	labelTaskProgress *walk.Label
+	labelSpeed       *walk.Label
+	labelTotal       *walk.Label
+	labelTime        *walk.Label
+	labelImagePercent *walk.Label
+	pbBatch          *walk.ProgressBar
 	labelCache       *walk.Label
+	labelMaxConn     *walk.Label
+	labelRetries     *walk.Label
+	labelIncrement   *walk.Label
+	labelSingle      *walk.Label
 	lmSrcRepo        *ListRepoModel
 	lmDstRepo        *ListRepoModel
-	lmIncrement      *ListStrModel
-	lmSingle         *ListStrModel
-	leMaxConn        *walk.LineEdit
-	leRetries        *walk.LineEdit
 	srcRepo          *Repo
 	dstRepo          *Repo
 	ctx              *TaskContext
@@ -60,28 +63,17 @@ func (mw *MyMainWindow) BeginAction() bool {
 	if txtLen > 1000000 {
 		mw.teOutput.SetText(string(mw.teOutput.Text()[txtLen-1000000:]))
 	}
-	maxConn, err := strconv.Atoi(mw.leMaxConn.Text())
-	if err != nil {
-		walk.MsgBox(mw.mainWindow,
-			I18n.Sprintf("Verify input failed"),
-			fmt.Sprint(I18n.Sprintf("Failed to set 'MaxThreads' with error: %v", err)),
-			walk.MsgBoxIconStop)
-		return true
+	mw.maxConn = CONF.MaxConn
+	if mw.maxConn < 1 {
+		mw.maxConn = runtime.NumCPU()
 	}
-	mw.maxConn = maxConn
-
-	retries, err := strconv.Atoi(mw.leRetries.Text())
-	if err != nil {
-		walk.MsgBox(mw.mainWindow,
-			I18n.Sprintf("Verify input failed"),
-			fmt.Sprint(I18n.Sprintf("Failed to set 'Retries' with error: %v", err)),
-			walk.MsgBoxIconStop)
-		return true
+	mw.retries = CONF.Retries
+	if mw.retries < 1 {
+		mw.retries = 2
 	}
-	mw.retries = retries
 
 	mw.ctx.Info(I18n.Sprintf("==============BEGIN=============="))
-	mw.ctx.Info(I18n.Sprintf("Transmit params: max threads: %v, max retries: %v", mw.maxConn, retries))
+	mw.ctx.Info(I18n.Sprintf("Transmit params: max threads: %v, max retries: %v", mw.maxConn, mw.retries))
 	mw.ctx.Reset()
 	mw.ctx.UpdateSecStart(time.Now().Unix())
 	return true
@@ -93,10 +85,40 @@ func (mw *MyMainWindow) EndAction() {
 	}
 	mw.ctx.UpdateSecEnd(time.Now().Unix())
 	if mw.ctx.Notify != nil {
-		mw.ctx.Notify.Send(I18n.Sprintf("### Transmit Task End \n- Stat: %v", mw.ctx.GetStatus()))
+		mw.ctx.Notify.Send(I18n.Sprintf("### Transmit Task End\n%v", mw.ctx.NotifyText()))
 	}
 	mw.ctx.Info(I18n.Sprintf("===============END==============="))
 	log.Flush()
+}
+
+func (mw *MyMainWindow) updateDstButtons() {
+	hasDst := len(CONF.DstRepos) > 0
+	mw.btnSync.SetEnabled(hasDst)
+	mw.btnWatch.SetEnabled(hasDst)
+	mw.btnUpload.SetEnabled(hasDst)
+	mw.cbDstRepo.SetEnabled(hasDst)
+}
+
+func (mw *MyMainWindow) checkConnectivity(needSrc, needDst bool, mode string) bool {
+	if needSrc {
+		if err := PingRegistry(mw.srcRepo.Registry, InsecureTarget(mw.srcRepo.Registry), mw.srcRepo.Proxy); err != nil {
+			mw.ctx.Error(I18n.Sprintf("Source registry %s unreachable: %v", mw.srcRepo.Registry, err))
+			walk.MsgBox(mw.mainWindow, I18n.Sprintf("Connection Failed"),
+				I18n.Sprintf("Source registry %s unreachable: %v\n\n%v", mw.srcRepo.Registry, err, mode),
+				walk.MsgBoxIconStop)
+			return false
+		}
+	}
+	if needDst {
+		if err := PingRegistry(mw.dstRepo.Registry, InsecureTarget(mw.dstRepo.Registry), mw.dstRepo.Proxy); err != nil {
+			mw.ctx.Error(I18n.Sprintf("Target registry %s unreachable: %v", mw.dstRepo.Registry, err))
+			walk.MsgBox(mw.mainWindow, I18n.Sprintf("Connection Failed"),
+				I18n.Sprintf("Target registry %s unreachable: %v\n\n%v", mw.dstRepo.Registry, err, mode),
+				walk.MsgBoxIconStop)
+			return false
+		}
+	}
+	return true
 }
 
 func (mw *MyMainWindow) StatDatafiles(pathname string, filename string) error {
@@ -157,6 +179,9 @@ func (mw *MyMainWindow) Transmit() {
 	if imgList == nil || len(imgList) < 1 || !mw.BeginAction() {
 		return
 	}
+	if !mw.checkConnectivity(true, true, I18n.Sprintf("Transmit mode requires both source and target registries online.")) {
+		return
+	}
 
 	c, err := NewClient(mw.maxConn, mw.retries, mw.ctx)
 	if err != nil {
@@ -189,6 +214,9 @@ func (mw *MyMainWindow) Transmit() {
 func (mw *MyMainWindow) Watch() {
 	imgList := mw.getInputList()
 	if imgList == nil || len(imgList) < 1 || !mw.BeginAction() {
+		return
+	}
+	if !mw.checkConnectivity(true, true, I18n.Sprintf("Watch mode requires both source and target registries online.")) {
 		return
 	}
 
@@ -291,6 +319,9 @@ func (mw *MyMainWindow) Watch() {
 func (mw *MyMainWindow) Download() {
 	imgList := mw.getInputList()
 	if imgList == nil || len(imgList) < 1 || !mw.BeginAction() {
+		return
+	}
+	if !mw.checkConnectivity(true, false, I18n.Sprintf("Download mode requires the source registry online.")) {
 		return
 	}
 
@@ -513,6 +544,9 @@ func (mw *MyMainWindow) Upload() {
 	go func() {
 		var err error
 		mw.BeginAction()
+		if !mw.checkConnectivity(false, true, I18n.Sprintf("Upload mode requires the target registry online.")) {
+			return
+		}
 		mw.ctx.CompMeta = cm
 		imgList := mw.getInputList()
 
