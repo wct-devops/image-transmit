@@ -8,6 +8,8 @@ import (
 
 	"github.com/containers/image/v5/manifest"
 	"github.com/containers/image/v5/pkg/blobinfocache/none"
+	"github.com/opencontainers/go-digest"
+	imgspecv1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/pkg/errors"
 )
 
@@ -87,6 +89,13 @@ func (t *OnlineTask) Run(idx int) error {
 	if err != nil {
 		return errors.New(I18n.Sprintf("Get blob info from %s error: %v", t.srcUrl, err))
 	}
+
+	var imgTotal int64
+	for _, b := range blobInfos {
+		imgTotal += b.Size
+	}
+	t.ctx.ImageProgressBegin(imgTotal)
+	defer t.ctx.ImageProgressEnd(imgTotal, imgTotal)
 
 	// blob transformation
 	for _, b := range blobInfos {
@@ -168,24 +177,39 @@ func (t *OnlineTask) Run(idx int) error {
 			// print the log of ignored blob
 			t.ctx.Info(I18n.Sprintf("Blob %s(%v) has been pushed to %s, will not be pulled", ShortenString(b.Digest.String(), 19), FormatByteSize(b.Size), t.dstUrl))
 		}
+		t.ctx.ImageProgressAdd(b.Size)
 	}
 
 	//Push manifest list
-	if manifestType == manifest.DockerV2ListMediaType {
-		manifestSchemaListInfo, err := manifest.Schema2ListFromManifest(manifestByte)
-		if err != nil {
-			return err
+	if manifestType == manifest.DockerV2ListMediaType || manifestType == imgspecv1.MediaTypeImageIndex {
+		var subDigests []digest.Digest
+		if manifestType == imgspecv1.MediaTypeImageIndex {
+			indexInfo, err := manifest.OCI1IndexFromManifest(manifestByte)
+			if err != nil {
+				return err
+			}
+			for _, m := range indexInfo.Manifests {
+				subDigests = append(subDigests, m.Digest)
+			}
+		} else {
+			listInfo, err := manifest.Schema2ListFromManifest(manifestByte)
+			if err != nil {
+				return err
+			}
+			for _, m := range listInfo.Manifests {
+				subDigests = append(subDigests, m.Digest)
+			}
 		}
 
-		var subManifestByte []byte
-
-		// push manifest to destination
-		for _, manifestDescriptorElem := range manifestSchemaListInfo.Manifests {
-			subManifestByte, _, err = t.source.source.GetManifest(t.source.ctx, &manifestDescriptorElem.Digest)
-			if err != nil {
-				return errors.New(I18n.Sprintf("Get manifest %v of OS:%s Architecture:%s for manifest list error: %v", manifestDescriptorElem.Digest, manifestDescriptorElem.Platform.OS, manifestDescriptorElem.Platform.Architecture, err))
+		for _, d := range subDigests {
+			subManifestByte := t.source.CachedManifest(d.String())
+			if subManifestByte == nil {
+				var err error
+				subManifestByte, _, err = t.source.source.GetManifest(t.source.ctx, &d)
+				if err != nil {
+					return errors.New(I18n.Sprintf("Get manifest %v of OS:%s Architecture:%s for manifest list error: %v", d, "", "", err))
+				}
 			}
-
 			if err := t.destination.PushManifest(subManifestByte); err != nil {
 				return errors.New(I18n.Sprintf("Put manifest to %s error: %v", t.dstUrl, err))
 			}

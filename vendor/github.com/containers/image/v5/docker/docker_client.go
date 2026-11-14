@@ -726,6 +726,13 @@ func (c *dockerClient) detectPropertiesHelper(ctx context.Context) error {
 		c.tlsClientConfig.InsecureSkipVerify = c.sys.DockerInsecureSkipTLSVerify == types.OptionalBoolTrue
 	}
 	tr := tlsclientconfig.NewTransport()
+	// Per-repository proxy from the caller's context; without one the
+	// registry is reached directly, never through a global/env proxy.
+	if proxy := tlsclientconfig.ProxyFromContext(ctx); proxy != nil {
+		tr.Proxy = http.ProxyURL(proxy)
+	} else {
+		tr.Proxy = nil
+	}
 	tr.TLSClientConfig = c.tlsClientConfig
 	c.client = &http.Client{Transport: tr}
 
