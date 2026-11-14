@@ -1,10 +1,12 @@
 package tlsclientconfig
 
 import (
+	"context"
 	"crypto/tls"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +17,23 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
+
+type proxyContextKey struct{}
+
+// WithProxy attaches a proxy to ctx. Registry clients created with this
+// context route all their requests (including authentication) through it.
+func WithProxy(ctx context.Context, proxy *url.URL) context.Context {
+	return context.WithValue(ctx, proxyContextKey{}, proxy)
+}
+
+// ProxyFromContext returns the proxy attached by WithProxy, or nil.
+func ProxyFromContext(ctx context.Context) *url.URL {
+	if ctx == nil {
+		return nil
+	}
+	proxy, _ := ctx.Value(proxyContextKey{}).(*url.URL)
+	return proxy
+}
 
 // SetupCertificates opens all .crt, .cert, and .key files in dir and appends / loads certs and key pairs as appropriate to tlsc
 func SetupCertificates(dir string, tlsc *tls.Config) error {

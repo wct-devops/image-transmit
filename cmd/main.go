@@ -71,7 +71,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := InitProxy(); err != nil {
+	if err := InitRepoProxies(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -296,7 +296,7 @@ func transmit(ctx *TaskContext) error {
 	}
 	for _, rawURL := range imgList {
 		src, dst := GenRepoUrl(srcRepo.Registry, dstRepo.Registry, dstRepo.Repository, rawURL)
-		c.GenerateOnlineTask(src, srcRepo.User, srcRepo.Password, dst, dstRepo.User, dstRepo.Password)
+		c.GenerateOnlineTask(src, srcRepo.User, srcRepo.Password, dst, dstRepo.User, dstRepo.Password, srcRepo.Proxy, dstRepo.Proxy)
 	}
 	ctx.UpdateTotalTask(c.TaskLen())
 	startReport(ctx)
@@ -329,7 +329,7 @@ func watch(ctx *TaskContext) error {
 				srcURL, _ := NewRepoURL(src)
 				dstURL, _ := NewRepoURL(dst)
 
-				imageSourceSrc, err := NewImageSource(ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), "", srcRepo.User, srcRepo.Password, InsecureTarget(src))
+				imageSourceSrc, err := NewImageSource(ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), "", srcRepo.User, srcRepo.Password, InsecureTarget(src), srcRepo.Proxy)
 				if err != nil {
 					log.Error(err)
 					return err
@@ -349,14 +349,14 @@ func watch(ctx *TaskContext) error {
 						continue
 					}
 
-					newImgSrc, err := NewImageSource(ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), tag, srcRepo.User, srcRepo.Password, InsecureTarget(src))
+					newImgSrc, err := NewImageSource(ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), tag, srcRepo.User, srcRepo.Password, InsecureTarget(src), srcRepo.Proxy)
 					if err != nil {
 						c.PutAInvalidTask(newSrcUrl)
 						ctx.Error(I18n.Sprintf("Url %s format error: %v, skipped", newSrcUrl, err))
 						continue
 					}
 
-					newImgDst, err := NewImageDestination(ctx.Context, dstURL.GetRegistry(), dstURL.GetRepoWithNamespace(), tag, dstRepo.User, dstRepo.Password, InsecureTarget(dst))
+					newImgDst, err := NewImageDestination(ctx.Context, dstURL.GetRegistry(), dstURL.GetRepoWithNamespace(), tag, dstRepo.User, dstRepo.Password, InsecureTarget(dst), dstRepo.Proxy)
 					if err != nil {
 						c.PutAInvalidTask(newSrcUrl)
 						ctx.Error(I18n.Sprintf("Url %s format error: %v, skipped", newDstUrl, err))
@@ -454,7 +454,7 @@ func download(ctx *TaskContext) error {
 	}
 	for _, rawURL := range imgList {
 		src, _ := GenRepoUrl(srcRepo.Registry, "", "", rawURL)
-		c.GenerateOfflineDownTask(src, srcRepo.User, srcRepo.Password)
+		c.GenerateOfflineDownTask(src, srcRepo.User, srcRepo.Password, srcRepo.Proxy)
 	}
 	startReport(ctx)
 	ctx.UpdateTotalTask(c.TaskLen())
@@ -562,9 +562,9 @@ func upload(ctx *TaskContext) error {
 		src, dst := GenRepoUrl("", dstRepo.Registry, dstRepo.Repository, rawURL)
 		if dstRepo.Name == "docker" || dstRepo.Name == "ctr" {
 			ctx.DockerTarget = dstRepo.Name
-			c.GenerateOfflineUploadTask(src, "", pathname, dstRepo.User, dstRepo.Password)
+			c.GenerateOfflineUploadTask(src, "", pathname, dstRepo.User, dstRepo.Password, dstRepo.Proxy)
 		} else {
-			c.GenerateOfflineUploadTask(src, dst, pathname, dstRepo.User, dstRepo.Password)
+			c.GenerateOfflineUploadTask(src, dst, pathname, dstRepo.User, dstRepo.Password, dstRepo.Proxy)
 		}
 	}
 	ctx.UpdateTotalTask(c.TaskLen())

@@ -171,6 +171,7 @@ func init() {
 	message.SetString(language.Chinese, "Send DingTalk message, text: %v", "发送钉钉通知: %v")
 	message.SetString(language.Chinese, "Watch mode", "守护模式")
 	message.SetString(language.Chinese, "Start Retry failed tasks", "开始重试失败任务")
-	message.SetString(language.Chinese, "Using proxy: %s", "使用代理: %s")
+	message.SetString(language.Chinese, "Repository %s using proxy: %s", "仓库 %s 使用代理: %s")
+	message.SetString(language.Chinese, "Invalid proxy for repository %s: %v", "仓库 %s 的代理配置无效: %v")
 	message.SetString(language.Chinese, "Invalid proxy %s: %v", "代理配置 %s 无效: %v")
 }

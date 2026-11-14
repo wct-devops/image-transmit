@@ -28,12 +28,14 @@ source: # 源仓库信息配置,可以支持多个
   user: #用户名和密码，如果匿名访问，用户名和密码都留空即可
   password:
   #name: #可选配置,指定名称
+  #proxy: socks5://127.0.0.1:1080 #可选配置,该仓库专用代理,支持socks5/socks5h/http/https,可带认证 socks5://user:pass@host:port,省略协议按socks5处理,留空则直连
 target:  # 目标仓库信息配置,可以支持多个
 - registry: "http://10.45.46.109"
   user:
   password:
   #repository: # 可选配置，是否修改镜像名称，假如填写值yyyy，则会将源仓库的10.45.80.1/xxxx/image:tag统一改成10.45.46.109/yyyy/image:tag
   #name: #可选配置,指定名称
+  #proxy: #可选配置,该仓库专用代理,格式同上;源/目标仓库常处不同网段,可分别配置不同代理,互不影响
 #maxconn: 5 # 可选配置，最大并发数，默认5
 #retries: 2 # 可选配置，最大重试次数，默认2
 #singlefile: false #可选配置，是否生成单一文件，默认关
@@ -50,7 +52,6 @@ target:  # 目标仓库信息配置,可以支持多个
 #- token :  # 用于配置钉钉令牌
 #  secret:  # 用于配置钉钉密钥
 #skiptlsverify: false # 是否强制跳过TLS校验
-#proxy: socks5://127.0.0.1:1080 # 可选配置，全局代理，支持socks5/socks5h/http/https，可带认证 socks5://user:pass@host:port，省略协议按socks5处理
 ```
 
 ## 界面截图

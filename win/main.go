@@ -90,7 +90,7 @@ func main() {
 		return
 	}
 
-	if err := InitProxy(); err != nil {
+	if err := InitRepoProxies(); err != nil {
 		walk.MsgBox(nil,
 			I18n.Sprintf("Configuration File Error"),
 			fmt.Sprint(err),
@@ -315,8 +315,10 @@ func main() {
 
 	mw.ctx.Reset()
 
-	if len(CONF.Proxy) > 0 {
-		mw.ctx.Info(I18n.Sprintf("Using proxy: %s", CONF.Proxy))
+	for _, repo := range append(append([]Repo{}, CONF.SrcRepos...), CONF.DstRepos...) {
+		if repo.Proxy != "" {
+			mw.ctx.Info(I18n.Sprintf("Repository %s using proxy: %s", repo.Registry, repo.Proxy))
+		}
 	}
 
 	if CONF.MaxConn > 0 {

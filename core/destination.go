@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/containers/image/v5/docker"
+	"github.com/containers/image/v5/pkg/tlsclientconfig"
 	"github.com/containers/image/v5/types"
 )
 
@@ -24,7 +25,7 @@ type ImageDestination struct {
 
 // NewImageDestination generates a ImageDestination by repository, the repository string must include "tag".
 // If username or password ids empty, access to repository will be anonymous.
-func NewImageDestination(pCtx context.Context, registry, repository, tag, username, password string, insecure bool) (*ImageDestination, error) {
+func NewImageDestination(pCtx context.Context, registry, repository, tag, username, password string, insecure bool, proxy string) (*ImageDestination, error) {
 	if CheckIfIncludeTag(repository) {
 		return nil, fmt.Errorf("repository string should not include tag")
 	}
@@ -52,6 +53,13 @@ func NewImageDestination(pCtx context.Context, registry, repository, tag, userna
 	}
 
 	ctx := context.WithValue(pCtx, interface{}("ImageDestination"), repository)
+	proxyURL, err := ProxyURL(proxy)
+	if err != nil {
+		return nil, err
+	}
+	if proxyURL != nil {
+		ctx = tlsclientconfig.WithProxy(ctx, proxyURL)
+	}
 	if username != "" && password != "" {
 		sysctx.DockerAuthConfig = &types.DockerAuthConfig{
 			Username: username,

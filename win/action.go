@@ -176,7 +176,7 @@ func (mw *MyMainWindow) Transmit() {
 
 				src, dst := GenRepoUrl(mw.srcRepo.Registry, mw.dstRepo.Registry, mw.dstRepo.Repository, rawURL)
 				c.GenerateOnlineTask(src, mw.srcRepo.User, mw.srcRepo.Password,
-					dst, mw.dstRepo.User, mw.dstRepo.Password)
+					dst, mw.dstRepo.User, mw.dstRepo.Password, mw.srcRepo.Proxy, mw.dstRepo.Proxy)
 
 			}
 			mw.ctx.UpdateTotalTask(c.TaskLen())
@@ -225,7 +225,7 @@ func (mw *MyMainWindow) Watch() {
 					srcURL, _ := NewRepoURL(src)
 					dstURL, _ := NewRepoURL(dst)
 
-					imageSourceSrc, err := NewImageSource(mw.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), "", mw.srcRepo.User, mw.srcRepo.Password, InsecureTarget(src))
+					imageSourceSrc, err := NewImageSource(mw.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), "", mw.srcRepo.User, mw.srcRepo.Password, InsecureTarget(src), mw.srcRepo.Proxy)
 					if err != nil {
 						log.Error(err)
 						return
@@ -245,14 +245,14 @@ func (mw *MyMainWindow) Watch() {
 							continue
 						}
 
-						newImgSrc, err := NewImageSource(mw.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), tag, mw.srcRepo.User, mw.srcRepo.Password, InsecureTarget(newSrcUrl))
+						newImgSrc, err := NewImageSource(mw.ctx.Context, srcURL.GetRegistry(), srcURL.GetRepoWithNamespace(), tag, mw.srcRepo.User, mw.srcRepo.Password, InsecureTarget(newSrcUrl), mw.srcRepo.Proxy)
 						if err != nil {
 							c.PutAInvalidTask(newSrcUrl)
 							mw.ctx.Error(I18n.Sprintf("Url %s format error: %v, skipped", newSrcUrl, err))
 							continue
 						}
 
-						newImgDst, err := NewImageDestination(mw.ctx.Context, dstURL.GetRegistry(), dstURL.GetRepoWithNamespace(), tag, mw.dstRepo.User, mw.dstRepo.Password, InsecureTarget(newDstUrl))
+						newImgDst, err := NewImageDestination(mw.ctx.Context, dstURL.GetRegistry(), dstURL.GetRepoWithNamespace(), tag, mw.dstRepo.User, mw.dstRepo.Password, InsecureTarget(newDstUrl), mw.dstRepo.Proxy)
 						if err != nil {
 							c.PutAInvalidTask(newSrcUrl)
 							mw.ctx.Error(I18n.Sprintf("Url %s format error: %v, skipped", newDstUrl, err))
@@ -383,7 +383,7 @@ func (mw *MyMainWindow) Download() {
 				break
 			}
 			src, _ := GenRepoUrl(mw.srcRepo.Registry, mw.dstRepo.Registry, mw.dstRepo.Repository, rawURL)
-			c.GenerateOfflineDownTask(src, mw.srcRepo.User, mw.srcRepo.Password)
+			c.GenerateOfflineDownTask(src, mw.srcRepo.User, mw.srcRepo.Password, mw.srcRepo.Proxy)
 		}
 		mw.ctx.UpdateTotalTask(c.TaskLen())
 		c.Run()
@@ -563,7 +563,7 @@ func (mw *MyMainWindow) Upload() {
 				return
 			}
 			src, dst := GenRepoUrl("", mw.dstRepo.Registry, mw.dstRepo.Repository, rawURL)
-			c.GenerateOfflineUploadTask(src, dst, mw.pathUpload, mw.dstRepo.User, mw.dstRepo.Password)
+			c.GenerateOfflineUploadTask(src, dst, mw.pathUpload, mw.dstRepo.User, mw.dstRepo.Password, mw.dstRepo.Proxy)
 		}
 
 		mw.ctx.UpdateTotalTask(c.TaskLen())

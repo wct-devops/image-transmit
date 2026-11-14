@@ -4,44 +4,68 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"strings"
 
 	log "github.com/cihub/seelog"
 )
 
-// InitProxy applies the optional proxy setting from cfg.yaml.
-// Registry and DingTalk HTTP clients all use http.ProxyFromEnvironment,
-// and Go's net/http natively dials socks5/socks5h proxies, so exporting
-// HTTP(S)_PROXY before any request routes all traffic through the proxy.
-// Must be called before the first HTTP request (env is cached on first use).
-func InitProxy() error {
-	if CONF == nil || len(strings.TrimSpace(CONF.Proxy)) == 0 {
-		return nil
-	}
-	proxy := strings.TrimSpace(CONF.Proxy)
+// NormalizeProxy validates a proxy setting, defaulting the scheme to socks5.
+func NormalizeProxy(raw string) (string, error) {
+	proxy := strings.TrimSpace(raw)
 	if !strings.Contains(proxy, "://") {
 		proxy = "socks5://" + proxy
 	}
 	u, err := url.Parse(proxy)
 	if err != nil {
-		return errors.New(I18n.Sprintf("Invalid proxy %s: %v", CONF.Proxy, err))
+		return "", errors.New(I18n.Sprintf("Invalid proxy %s: %v", raw, err))
 	}
 	switch u.Scheme {
 	case "socks5", "socks5h", "http", "https":
 	default:
-		return errors.New(I18n.Sprintf("Invalid proxy %s: %v", CONF.Proxy,
+		return "", errors.New(I18n.Sprintf("Invalid proxy %s: %v", raw,
 			fmt.Sprintf("unsupported scheme %q, use socks5/socks5h/http/https", u.Scheme)))
 	}
 	if u.Host == "" {
-		return errors.New(I18n.Sprintf("Invalid proxy %s: %v", CONF.Proxy, "missing host:port"))
+		return "", errors.New(I18n.Sprintf("Invalid proxy %s: %v", raw, "missing host:port"))
 	}
-	for _, key := range []string{"HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"} {
-		if err := os.Setenv(key, proxy); err != nil {
+	return proxy, nil
+}
+
+// InitRepoProxies validates the optional per-repository proxy settings.
+// Repositories without a proxy connect directly; source and target often
+// live in different network segments and need different proxies (or none).
+func InitRepoProxies() error {
+	for i := range CONF.SrcRepos {
+		if err := initRepoProxy(&CONF.SrcRepos[i]); err != nil {
 			return err
 		}
 	}
-	CONF.Proxy = proxy
-	log.Info(I18n.Sprintf("Using proxy: %s", proxy))
+	for i := range CONF.DstRepos {
+		if err := initRepoProxy(&CONF.DstRepos[i]); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func initRepoProxy(repo *Repo) error {
+	if strings.TrimSpace(repo.Proxy) == "" {
+		repo.Proxy = ""
+		return nil
+	}
+	proxy, err := NormalizeProxy(repo.Proxy)
+	if err != nil {
+		return errors.New(I18n.Sprintf("Invalid proxy for repository %s: %v", repo.Registry, err))
+	}
+	repo.Proxy = proxy
+	log.Info(I18n.Sprintf("Repository %s using proxy: %s", repo.Registry, proxy))
+	return nil
+}
+
+// ProxyURL parses a normalized repository proxy setting; empty means direct.
+func ProxyURL(proxy string) (*url.URL, error) {
+	if proxy == "" {
+		return nil, nil
+	}
+	return url.Parse(proxy)
 }

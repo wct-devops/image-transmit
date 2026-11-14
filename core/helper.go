@@ -20,6 +20,7 @@ type Repo struct {
 	Registry   string `yaml:"registry"`
 	Password   string `yaml:"password"`
 	Repository string `yaml:"repository,omitempty"`
+	Proxy      string `yaml:"proxy,omitempty"`
 }
 
 type YamlCfg struct {
@@ -38,7 +39,6 @@ type YamlCfg struct {
 	Interval      int              `yaml:"interval,omitempty"`
 	DingTalk      []DingTalkAccess `yaml:"dingtalk,omitempty"`
 	SkipTlsVerify bool             `yaml:"skiptlsverify,omitempty"`
-	Proxy         string           `yaml:"proxy,omitempty"`
 }
 
 func CheckInvalidChar(text string) bool {
